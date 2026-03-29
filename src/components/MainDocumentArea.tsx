@@ -1,0 +1,123 @@
+import type { DocumentModel, DocumentSectionData, SectionOverlap, WorkingDocumentStatus } from '../document'
+import { DocumentViewer } from './DocumentViewer'
+import { RebaseOverlapView } from './RebaseOverlapView'
+import { ReviewCompareView } from './ReviewCompareView'
+import { WorkspaceHeader, type WorkspaceBadgeTone } from './WorkspaceHeader'
+
+export type RebaseSessionState = {
+  overlaps: SectionOverlap[]
+  draftSections: DocumentSectionData[]
+  resolutions: Record<string, 'official' | 'mine' | undefined>
+}
+
+type MainDocumentAreaProps = {
+  officialDocument: DocumentModel
+  activeDocument: DocumentModel
+  isWorkingCopy: boolean
+  workingStatus: WorkingDocumentStatus | undefined
+  readOnly: boolean
+  onSectionBodyChange: (sectionId: string, body: string) => void
+  acceptedSectionIds: string[]
+  rejectedSectionIds: string[]
+  onAcceptSection: (sectionId: string) => void
+  onRejectSection: (sectionId: string) => void
+  /** Official moved on since this branch — user should update */
+  isOfficialNewerThanBranch: boolean
+  onUpdateToLatest: () => void
+  rebaseSession: RebaseSessionState | null
+  onRebaseChoose: (sectionId: string, choice: 'official' | 'mine') => void
+  onApplyRebaseMerge: () => void
+}
+
+function workspaceBadge(isWorkingCopy: boolean, workingStatus: WorkingDocumentStatus | undefined): {
+  label: string
+  tone: WorkspaceBadgeTone
+} {
+  if (!isWorkingCopy) return { label: 'Official Version', tone: 'official' }
+  if (workingStatus === 'in_review') return { label: 'In Review', tone: 'in_review' }
+  return { label: 'Working Copy', tone: 'working' }
+}
+
+export function MainDocumentArea({
+  officialDocument,
+  activeDocument,
+  isWorkingCopy,
+  workingStatus,
+  readOnly,
+  onSectionBodyChange,
+  acceptedSectionIds,
+  rejectedSectionIds,
+  onAcceptSection,
+  onRejectSection,
+  isOfficialNewerThanBranch,
+  onUpdateToLatest,
+  rebaseSession,
+  onRebaseChoose,
+  onApplyRebaseMerge,
+}: MainDocumentAreaProps) {
+  const { label, tone } = workspaceBadge(isWorkingCopy, workingStatus)
+  const inReview = isWorkingCopy && workingStatus === 'in_review'
+  const isEditing = isWorkingCopy && workingStatus === 'editing'
+  const showOutdatedBanner = isEditing && isOfficialNewerThanBranch && !rebaseSession
+
+  const rebaseCanApply =
+    rebaseSession !== null &&
+    rebaseSession.overlaps.length > 0 &&
+    rebaseSession.overlaps.every((o) => rebaseSession.resolutions[o.sectionId] !== undefined)
+
+  return (
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-gray-100/80">
+      <WorkspaceHeader documentTitle="Master Services Agreement" versionLabel={label} badgeTone={tone} />
+      {showOutdatedBanner ? (
+        <div
+          className="flex shrink-0 flex-wrap items-center justify-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 md:justify-between md:px-6"
+          role="status"
+        >
+          <span className="font-medium">A newer official version is available</span>
+          <button
+            type="button"
+            onClick={onUpdateToLatest}
+            className="rounded-lg bg-amber-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-amber-800"
+          >
+            Update to Latest
+          </button>
+        </div>
+      ) : null}
+      {inReview ? (
+        <div
+          className="shrink-0 border-b border-violet-200 bg-violet-50 px-6 py-3 text-center text-sm font-medium text-violet-900"
+          role="status"
+        >
+          Compare versions below. Accept or reject each changed section, then use Make Official to merge.
+        </div>
+      ) : null}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-8 md:py-10">
+        {inReview ? (
+          <ReviewCompareView
+            officialDocument={officialDocument}
+            submittedDocument={activeDocument}
+            acceptedSectionIds={acceptedSectionIds}
+            rejectedSectionIds={rejectedSectionIds}
+            onAcceptSection={onAcceptSection}
+            onRejectSection={onRejectSection}
+          />
+        ) : rebaseSession ? (
+          <RebaseOverlapView
+            overlaps={rebaseSession.overlaps}
+            draftSections={rebaseSession.draftSections}
+            resolutions={rebaseSession.resolutions}
+            onChoose={onRebaseChoose}
+            onApplyMerge={onApplyRebaseMerge}
+            canApply={rebaseCanApply}
+          />
+        ) : (
+          <DocumentViewer
+            document={activeDocument}
+            readOnly={readOnly}
+            onSectionBodyChange={onSectionBodyChange}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
