@@ -170,6 +170,49 @@ export type SectionOverlap = {
   officialBody: string
 }
 
+/** Owner reviewing an editor submission: both editor and current official diverged from the same merge base */
+export type ReviewOverlapSection = {
+  sectionId: string
+  title: string
+  kind: SectionKind
+  baseBody: string
+  officialBody: string
+  submittedBody: string
+}
+
+/**
+ * Sections where the editor changed text after branching *and* the current official differs from that branch base.
+ * Requires `submitted.branchBaseSections` (set when the editor started their working copy).
+ */
+export function getReviewOverlapSections(
+  official: DocumentModel,
+  submitted: DocumentModel,
+): ReviewOverlapSection[] {
+  const base = submitted.branchBaseSections
+  if (!base?.length) return []
+
+  const out: ReviewOverlapSection[] = []
+  for (const offSec of official.sections) {
+    const b = base.find((x) => x.id === offSec.id)
+    const sub = submitted.sections.find((x) => x.id === offSec.id)
+    if (!b || !sub) continue
+
+    const editorChanged = sub.body !== b.body
+    const officialChanged = offSec.body !== b.body
+    if (editorChanged && officialChanged) {
+      out.push({
+        sectionId: offSec.id,
+        title: offSec.title,
+        kind: offSec.kind,
+        baseBody: b.body,
+        officialBody: offSec.body,
+        submittedBody: sub.body,
+      })
+    }
+  }
+  return out
+}
+
 /**
  * Rebase working copy onto latest official.
  * - Only-working changes: keep yours

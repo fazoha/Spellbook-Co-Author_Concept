@@ -27,12 +27,26 @@ type MainDocumentAreaProps = {
   rebaseSession: RebaseSessionState | null
   onRebaseChoose: (sectionId: string, choice: 'official' | 'mine') => void
   onApplyRebaseMerge: () => void
+  /** Owner reviewing a collaborator’s submitted working copy (live session). */
+  collabOwnerReview?: {
+    submitterName: string
+    submittedDocument: DocumentModel
+    acceptedSectionIds: string[]
+    rejectedSectionIds: string[]
+    onAcceptSection: (sectionId: string) => void
+    onRejectSection: (sectionId: string) => void
+  } | null
 }
 
-function workspaceBadge(isWorkingCopy: boolean, workingStatus: WorkingDocumentStatus | undefined): {
+function workspaceBadge(
+  isWorkingCopy: boolean,
+  workingStatus: WorkingDocumentStatus | undefined,
+  collabOwnerReview: MainDocumentAreaProps['collabOwnerReview'],
+): {
   label: string
   tone: WorkspaceBadgeTone
 } {
+  if (collabOwnerReview) return { label: `Review · ${collabOwnerReview.submitterName}`, tone: 'in_review' }
   if (!isWorkingCopy) return { label: 'Official Version', tone: 'official' }
   if (workingStatus === 'in_review') return { label: 'In Review', tone: 'in_review' }
   return { label: 'Working Copy', tone: 'working' }
@@ -54,11 +68,12 @@ export function MainDocumentArea({
   rebaseSession,
   onRebaseChoose,
   onApplyRebaseMerge,
+  collabOwnerReview,
 }: MainDocumentAreaProps) {
-  const { label, tone } = workspaceBadge(isWorkingCopy, workingStatus)
-  const inReview = isWorkingCopy && workingStatus === 'in_review'
+  const { label, tone } = workspaceBadge(isWorkingCopy, workingStatus, collabOwnerReview)
+  const inReview = (isWorkingCopy && workingStatus === 'in_review') || Boolean(collabOwnerReview)
   const isEditing = isWorkingCopy && workingStatus === 'editing'
-  const showOutdatedBanner = isEditing && isOfficialNewerThanBranch && !rebaseSession
+  const showOutdatedBanner = isEditing && isOfficialNewerThanBranch && !rebaseSession && !collabOwnerReview
 
   const rebaseCanApply =
     rebaseSession !== null &&
@@ -92,18 +107,20 @@ export function MainDocumentArea({
           className="shrink-0 border-b border-violet-200 bg-violet-50 px-6 py-3 text-center text-sm font-medium text-violet-900"
           role="status"
         >
-          Compare versions below. Accept or reject each changed section, then use Make Official to merge.
+          {collabOwnerReview
+            ? 'You are reviewing a collaborator’s submission. Overlapping sections are flagged with a three-way view (base, your official, their text). Accept or reject each changed section, then merge into the shared official version.'
+            : 'Compare versions below. Accept or reject each changed section, then use Make Official to merge.'}
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-8 md:py-10">
         {inReview ? (
           <ReviewCompareView
             officialDocument={officialDocument}
-            submittedDocument={activeDocument}
-            acceptedSectionIds={acceptedSectionIds}
-            rejectedSectionIds={rejectedSectionIds}
-            onAcceptSection={onAcceptSection}
-            onRejectSection={onRejectSection}
+            submittedDocument={collabOwnerReview?.submittedDocument ?? activeDocument}
+            acceptedSectionIds={collabOwnerReview?.acceptedSectionIds ?? acceptedSectionIds}
+            rejectedSectionIds={collabOwnerReview?.rejectedSectionIds ?? rejectedSectionIds}
+            onAcceptSection={collabOwnerReview?.onAcceptSection ?? onAcceptSection}
+            onRejectSection={collabOwnerReview?.onRejectSection ?? onRejectSection}
           />
         ) : rebaseSession ? (
           <RebaseOverlapView
