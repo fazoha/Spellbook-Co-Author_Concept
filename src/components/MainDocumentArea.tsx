@@ -67,7 +67,11 @@ export function MainDocumentArea({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-gray-100/80">
-      <WorkspaceHeader documentTitle="Master Services Agreement" versionLabel={label} badgeTone={tone} />
+      <WorkspaceHeader
+        documentTitle={activeDocument.documentTitle ?? 'Document'}
+        versionLabel={label}
+        badgeTone={tone}
+      />
       {showOutdatedBanner ? (
         <div
           className="flex shrink-0 flex-wrap items-center justify-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 md:justify-between md:px-6"
@@ -114,6 +118,9 @@ export function MainDocumentArea({
           <DocumentViewer
             document={activeDocument}
             readOnly={readOnly}
+            compareOfficial={
+              isWorkingCopy && workingStatus === 'editing' ? officialDocument : undefined
+            }
             onSectionBodyChange={onSectionBodyChange}
           />
         )}

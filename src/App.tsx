@@ -1,13 +1,13 @@
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
 import { LeftSidebar } from './components/LeftSidebar'
 import { MainDocumentArea, type RebaseSessionState } from './components/MainDocumentArea'
 import { WorkflowActionPanel } from './components/WorkflowActionPanel'
+import { DocumentUploadGate } from './components/DocumentUploadGate'
 import {
   appendSavedUpdate,
   applyOverlapResolutions,
   computeUpdateToLatest,
-  createInitialOfficialDocument,
   getChangedSectionIds,
   mergeOfficialWithDecisions,
   submitWorkingDocumentForReview,
@@ -15,23 +15,68 @@ import {
   type DocumentModel,
 } from './document'
 
-export default function App() {
-  const [officialDocument, setOfficialDocument] = useState<DocumentModel>(createInitialOfficialDocument)
-  const [workingDocument, setWorkingDocument] = useState<DocumentModel | null>(null)
-  const [saveUpdateNote, setSaveUpdateNote] = useState('')
-  const [acceptedSectionIds, setAcceptedSectionIds] = useState<string[]>([])
-  const [rejectedSectionIds, setRejectedSectionIds] = useState<string[]>([])
-  const [rebaseSession, setRebaseSession] = useState<RebaseSessionState | null>(null)
+const MAX_DOCUMENTS = 3
 
-  const isWorkingCopy = workingDocument !== null
+type DocSession = {
+  workingDocument: DocumentModel | null
+  saveUpdateNote: string
+  acceptedSectionIds: string[]
+  rejectedSectionIds: string[]
+  rebaseSession: RebaseSessionState | null
+}
+
+function emptySession(): DocSession {
+  return {
+    workingDocument: null,
+    saveUpdateNote: '',
+    acceptedSectionIds: [],
+    rejectedSectionIds: [],
+    rebaseSession: null,
+  }
+}
+
+export default function App() {
+  const [officialDocuments, setOfficialDocuments] = useState<DocumentModel[]>([])
+  const [activeWorkspaceId, setActiveWorkspaceId] = useState<string | null>(null)
+  const [sessions, setSessions] = useState<Record<string, DocSession>>({})
+  const [selectedRemovalIds, setSelectedRemovalIds] = useState<string[]>([])
+  const [addMoreBusy, setAddMoreBusy] = useState(false)
+  const [addMoreError, setAddMoreError] = useState<string | null>(null)
+
+  const officialDocument = useMemo(
+    () => officialDocuments.find((o) => o.workspaceId === activeWorkspaceId) ?? null,
+    [officialDocuments, activeWorkspaceId],
+  )
+
+  const session = activeWorkspaceId
+    ? (sessions[activeWorkspaceId] ?? emptySession())
+    : emptySession()
+
+  const workingDocument = session.workingDocument
+  const saveUpdateNote = session.saveUpdateNote
+  const acceptedSectionIds = session.acceptedSectionIds
+  const rejectedSectionIds = session.rejectedSectionIds
+  const rebaseSession = session.rebaseSession
+
   const workingStatus = workingDocument?.status
 
-  const activeDocument = isWorkingCopy ? workingDocument! : officialDocument
+  const patchSession = useCallback((workspaceId: string, patch: Partial<DocSession>) => {
+    setSessions((prev) => ({
+      ...prev,
+      [workspaceId]: { ...(prev[workspaceId] ?? emptySession()), ...patch },
+    }))
+  }, [])
+
+  const isWorkingCopy = workingDocument !== null
+
+  const activeDocument: DocumentModel | null =
+    officialDocument === null ? null : isWorkingCopy ? workingDocument! : officialDocument
 
   const rebaseOpen = rebaseSession !== null
   const documentReadOnly = !isWorkingCopy || workingStatus === 'in_review' || rebaseOpen
 
   const isOfficialNewerThanBranch =
+    officialDocument !== null &&
     isWorkingCopy &&
     workingStatus === 'editing' &&
     workingDocument!.basedOnVersionId !== undefined &&
@@ -39,7 +84,9 @@ export default function App() {
     workingDocument!.basedOnVersionId !== officialDocument.versionId
 
   const changedSectionIds =
-    isWorkingCopy && workingDocument ? getChangedSectionIds(officialDocument, workingDocument) : []
+    isWorkingCopy && workingDocument && officialDocument
+      ? getChangedSectionIds(officialDocument, workingDocument)
+      : []
 
   const allChangedSectionsDecided =
     changedSectionIds.length === 0 ||
@@ -47,117 +94,249 @@ export default function App() {
       (id) => acceptedSectionIds.includes(id) || rejectedSectionIds.includes(id),
     )
 
-  function handleStartWorking() {
-    if (isWorkingCopy) return
-    setWorkingDocument({
-      sections: structuredClone(officialDocument.sections),
-      savedUpdates: [],
-      status: 'editing',
-      reviewRequests: [],
-      basedOnVersionId: officialDocument.versionId!,
-      branchBaseSections: structuredClone(officialDocument.sections),
+  function handleFirstDocumentLoaded(doc: DocumentModel) {
+    const wid = doc.workspaceId
+    if (!wid) return
+    setOfficialDocuments([doc])
+    setSessions({ [wid]: emptySession() })
+    setActiveWorkspaceId(wid)
+    setSelectedRemovalIds([])
+  }
+
+  async function handleAddDocumentFile(file: File) {
+    if (officialDocuments.length >= MAX_DOCUMENTS) return
+    setAddMoreError(null)
+    setAddMoreBusy(true)
+    try {
+      const { importDocxFromFile } = await import('./docxImport')
+      const doc = await importDocxFromFile(file)
+      const wid = doc.workspaceId
+      if (!wid) return
+      setOfficialDocuments((prev) => [...prev, doc])
+      setSessions((prev) => ({ ...prev, [wid]: emptySession() }))
+      setActiveWorkspaceId(wid)
+      setSelectedRemovalIds([])
+    } catch (e) {
+      setAddMoreError(e instanceof Error ? e.message : 'Could not read this file.')
+    } finally {
+      setAddMoreBusy(false)
+    }
+  }
+
+  function handleToggleRemoval(workspaceId: string) {
+    setSelectedRemovalIds((prev) =>
+      prev.includes(workspaceId) ? prev.filter((x) => x !== workspaceId) : [...prev, workspaceId],
+    )
+  }
+
+  function handleRemoveSelected() {
+    const ids = selectedRemovalIds
+    if (ids.length === 0) return
+    setOfficialDocuments((prev) => {
+      const next = prev.filter((o) => !o.workspaceId || !ids.includes(o.workspaceId))
+      setActiveWorkspaceId((cur) => {
+        if (!cur || !ids.includes(cur)) return cur
+        return next[0]?.workspaceId ?? null
+      })
+      return next
     })
-    setAcceptedSectionIds([])
-    setRejectedSectionIds([])
-    setRebaseSession(null)
+    setSessions((prev) => {
+      const n = { ...prev }
+      ids.forEach((id) => {
+        delete n[id]
+      })
+      return n
+    })
+    setSelectedRemovalIds([])
+  }
+
+  function handleStartWorking() {
+    if (!activeWorkspaceId || !officialDocument || isWorkingCopy) return
+    patchSession(activeWorkspaceId, {
+      workingDocument: {
+        sections: structuredClone(officialDocument.sections),
+        savedUpdates: [],
+        status: 'editing',
+        reviewRequests: [],
+        basedOnVersionId: officialDocument.versionId!,
+        branchBaseSections: structuredClone(officialDocument.sections),
+        documentTitle: officialDocument.documentTitle,
+        workspaceId: officialDocument.workspaceId,
+      },
+      acceptedSectionIds: [],
+      rejectedSectionIds: [],
+      rebaseSession: null,
+    })
   }
 
   function handleSectionBodyChange(sectionId: string, body: string) {
-    setWorkingDocument((prev) => {
-      if (!prev) return prev
-      return updateSectionBody(prev, sectionId, body)
+    if (!activeWorkspaceId) return
+    setSessions((prev) => {
+      const s = prev[activeWorkspaceId] ?? emptySession()
+      if (!s.workingDocument) return prev
+      return {
+        ...prev,
+        [activeWorkspaceId]: {
+          ...s,
+          workingDocument: updateSectionBody(s.workingDocument, sectionId, body),
+        },
+      }
     })
   }
 
   function handleSaveUpdate() {
-    setWorkingDocument((prev) => {
-      if (!prev) return prev
-      return appendSavedUpdate(prev, saveUpdateNote)
+    if (!activeWorkspaceId) return
+    setSessions((prev) => {
+      const s = prev[activeWorkspaceId] ?? emptySession()
+      if (!s.workingDocument) return prev
+      return {
+        ...prev,
+        [activeWorkspaceId]: {
+          ...s,
+          workingDocument: appendSavedUpdate(s.workingDocument, s.saveUpdateNote),
+          saveUpdateNote: '',
+        },
+      }
     })
-    setSaveUpdateNote('')
   }
 
   function handleSendForReview() {
-    setWorkingDocument((prev) => {
-      if (!prev || prev.status !== 'editing') return prev
-      return submitWorkingDocumentForReview(prev)
+    if (!activeWorkspaceId) return
+    setSessions((prev) => {
+      const s = prev[activeWorkspaceId] ?? emptySession()
+      if (!s.workingDocument || s.workingDocument.status !== 'editing') return prev
+      return {
+        ...prev,
+        [activeWorkspaceId]: {
+          ...s,
+          workingDocument: submitWorkingDocumentForReview(s.workingDocument),
+          acceptedSectionIds: [],
+          rejectedSectionIds: [],
+          rebaseSession: null,
+        },
+      }
     })
-    setAcceptedSectionIds([])
-    setRejectedSectionIds([])
-    setRebaseSession(null)
   }
 
   function handleAcceptSection(sectionId: string) {
-    setRejectedSectionIds((prev) => prev.filter((id) => id !== sectionId))
-    setAcceptedSectionIds((prev) => (prev.includes(sectionId) ? prev : [...prev, sectionId]))
+    if (!activeWorkspaceId) return
+    setSessions((prev) => {
+      const s = prev[activeWorkspaceId] ?? emptySession()
+      return {
+        ...prev,
+        [activeWorkspaceId]: {
+          ...s,
+          rejectedSectionIds: s.rejectedSectionIds.filter((id) => id !== sectionId),
+          acceptedSectionIds: s.acceptedSectionIds.includes(sectionId)
+            ? s.acceptedSectionIds
+            : [...s.acceptedSectionIds, sectionId],
+        },
+      }
+    })
   }
 
   function handleRejectSection(sectionId: string) {
-    setAcceptedSectionIds((prev) => prev.filter((id) => id !== sectionId))
-    setRejectedSectionIds((prev) => (prev.includes(sectionId) ? prev : [...prev, sectionId]))
+    if (!activeWorkspaceId) return
+    setSessions((prev) => {
+      const s = prev[activeWorkspaceId] ?? emptySession()
+      return {
+        ...prev,
+        [activeWorkspaceId]: {
+          ...s,
+          acceptedSectionIds: s.acceptedSectionIds.filter((id) => id !== sectionId),
+          rejectedSectionIds: s.rejectedSectionIds.includes(sectionId)
+            ? s.rejectedSectionIds
+            : [...s.rejectedSectionIds, sectionId],
+        },
+      }
+    })
   }
 
   function handleMakeOfficial() {
-    if (!workingDocument || workingStatus !== 'in_review') return
+    if (!activeWorkspaceId || !officialDocument || !workingDocument || workingStatus !== 'in_review') return
     if (!allChangedSectionsDecided) return
 
     const merged = mergeOfficialWithDecisions(officialDocument, workingDocument, new Set(acceptedSectionIds))
-    setOfficialDocument(merged)
-    setWorkingDocument(null)
-    setAcceptedSectionIds([])
-    setRejectedSectionIds([])
-    setSaveUpdateNote('')
-    setRebaseSession(null)
+    setOfficialDocuments((prev) =>
+      prev.map((o) => (o.workspaceId === activeWorkspaceId ? merged : o)),
+    )
+    patchSession(activeWorkspaceId, {
+      workingDocument: null,
+      saveUpdateNote: '',
+      acceptedSectionIds: [],
+      rejectedSectionIds: [],
+      rebaseSession: null,
+    })
   }
 
   function handleUpdateToLatest() {
-    if (!workingDocument || workingStatus !== 'editing') return
+    if (!activeWorkspaceId || !officialDocument || !workingDocument || workingStatus !== 'editing') return
     if (workingDocument.basedOnVersionId === officialDocument.versionId) return
 
     const { mergedSections, overlaps } = computeUpdateToLatest(officialDocument, workingDocument)
 
     if (overlaps.length === 0) {
-      setWorkingDocument({
-        ...workingDocument,
-        sections: mergedSections,
-        basedOnVersionId: officialDocument.versionId!,
-        branchBaseSections: structuredClone(officialDocument.sections),
+      patchSession(activeWorkspaceId, {
+        workingDocument: {
+          ...workingDocument,
+          sections: mergedSections,
+          basedOnVersionId: officialDocument.versionId!,
+          branchBaseSections: structuredClone(officialDocument.sections),
+        },
+        rebaseSession: null,
       })
-      setRebaseSession(null)
       return
     }
 
-    setRebaseSession({
-      overlaps,
-      draftSections: mergedSections,
-      resolutions: {},
+    patchSession(activeWorkspaceId, {
+      rebaseSession: {
+        overlaps,
+        draftSections: mergedSections,
+        resolutions: {},
+      },
     })
   }
 
   function handleRebaseChoose(sectionId: string, choice: 'official' | 'mine') {
-    setRebaseSession((prev) => {
-      if (!prev) return prev
-      return { ...prev, resolutions: { ...prev.resolutions, [sectionId]: choice } }
+    if (!activeWorkspaceId) return
+    setSessions((prev) => {
+      const s = prev[activeWorkspaceId] ?? emptySession()
+      if (!s.rebaseSession) return prev
+      return {
+        ...prev,
+        [activeWorkspaceId]: {
+          ...s,
+          rebaseSession: {
+            ...s.rebaseSession,
+            resolutions: { ...s.rebaseSession.resolutions, [sectionId]: choice },
+          },
+        },
+      }
     })
   }
 
-  /** Dev-only: simulate another party publishing a new official version while you still have a branch */
   function handleDemoBumpOfficial() {
-    if (!import.meta.env.DEV) return
-    setOfficialDocument((prev) => ({
-      ...prev,
-      versionId: crypto.randomUUID(),
-      sections: prev.sections.map((s) =>
-        s.id === 'scope' ? { ...s, body: `${s.body} [Parallel official change.]` } : s,
-      ),
-    }))
+    if (!import.meta.env.DEV || !activeWorkspaceId) return
+    setOfficialDocuments((prev) =>
+      prev.map((o) => {
+        if (o.workspaceId !== activeWorkspaceId) return o
+        const firstId = o.sections[0]?.id
+        return {
+          ...o,
+          versionId: crypto.randomUUID(),
+          sections: o.sections.map((s) =>
+            s.id === firstId ? { ...s, body: `${s.body} [Parallel official change.]` } : s,
+          ),
+        }
+      }),
+    )
   }
 
   function handleApplyRebaseMerge() {
-    if (!rebaseSession || !workingDocument) return
+    if (!activeWorkspaceId || !rebaseSession || !workingDocument) return
     const { overlaps, draftSections, resolutions } = rebaseSession
     const allChosen = overlaps.every((o) => resolutions[o.sectionId] !== undefined)
-    if (!allChosen) return
+    if (!allChosen || !officialDocument) return
 
     const finalSections = applyOverlapResolutions(
       draftSections,
@@ -165,13 +344,35 @@ export default function App() {
       resolutions as Record<string, 'official' | 'mine'>,
     )
 
-    setWorkingDocument({
-      ...workingDocument,
-      sections: finalSections,
-      basedOnVersionId: officialDocument.versionId!,
-      branchBaseSections: structuredClone(officialDocument.sections),
+    patchSession(activeWorkspaceId, {
+      workingDocument: {
+        ...workingDocument,
+        sections: finalSections,
+        basedOnVersionId: officialDocument.versionId!,
+        branchBaseSections: structuredClone(officialDocument.sections),
+      },
+      rebaseSession: null,
     })
-    setRebaseSession(null)
+  }
+
+  if (officialDocuments.length === 0) {
+    return (
+      <div className="flex h-screen min-h-0 bg-white font-sans text-gray-800 antialiased">
+        <LeftSidebar />
+        <DocumentUploadGate onDocumentLoaded={handleFirstDocumentLoaded} />
+      </div>
+    )
+  }
+
+  if (!officialDocument || !activeDocument) {
+    return (
+      <div className="flex h-screen min-h-0 bg-white font-sans text-gray-800 antialiased">
+        <LeftSidebar />
+        <div className="flex flex-1 items-center justify-center text-sm text-gray-600">
+          Select a document in the panel.
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -197,10 +398,23 @@ export default function App() {
             onApplyRebaseMerge={handleApplyRebaseMerge}
           />
           <WorkflowActionPanel
+            documents={officialDocuments}
+            activeWorkspaceId={activeWorkspaceId!}
+            maxDocuments={MAX_DOCUMENTS}
+            selectedRemovalIds={selectedRemovalIds}
+            onToggleRemoval={handleToggleRemoval}
+            onSelectWorkspace={setActiveWorkspaceId}
+            onAddDocumentFile={handleAddDocumentFile}
+            addMoreBusy={addMoreBusy}
+            addMoreError={addMoreError}
+            onDismissAddMoreError={() => setAddMoreError(null)}
+            onRemoveSelected={handleRemoveSelected}
             isWorkingCopy={isWorkingCopy}
             workingStatus={workingStatus}
             saveUpdateNote={saveUpdateNote}
-            onSaveUpdateNoteChange={setSaveUpdateNote}
+            onSaveUpdateNoteChange={(value) => {
+              if (activeWorkspaceId) patchSession(activeWorkspaceId, { saveUpdateNote: value })
+            }}
             onStartWorking={handleStartWorking}
             onSaveUpdate={handleSaveUpdate}
             onSendForReview={handleSendForReview}

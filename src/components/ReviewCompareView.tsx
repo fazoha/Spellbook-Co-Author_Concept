@@ -1,5 +1,6 @@
 import { getChangedSectionIds } from '../document'
 import type { DocumentModel, DocumentSectionData } from '../document'
+import { LineDiffLegend, LineDiffPanels } from './LineDiffPanels'
 
 const readOnlyBox =
   'w-full resize-none rounded-md border border-gray-200 bg-gray-50 px-3 py-2.5 font-serif text-sm leading-relaxed text-gray-800'
@@ -35,6 +36,7 @@ export function ReviewCompareView({
   onAcceptSection,
   onRejectSection,
 }: ReviewCompareViewProps) {
+  const docSubtitle = officialDocument.documentTitle ?? 'Document'
   const changedIds = new Set(getChangedSectionIds(officialDocument, submittedDocument))
 
   function submittedSectionFor(id: string): DocumentSectionData | undefined {
@@ -46,14 +48,13 @@ export function ReviewCompareView({
       className="mx-auto w-full max-w-6xl rounded-lg border border-gray-200 bg-white px-4 py-8 shadow-sm md:px-8 md:py-10"
       aria-label="Compare official and submitted versions"
     >
-      <p className="text-center text-sm font-sans font-medium uppercase tracking-widest text-gray-500">
-        Master Services Agreement
-      </p>
+      <p className="text-center text-sm font-sans font-medium uppercase tracking-widest text-gray-500">{docSubtitle}</p>
       <h2 className="mt-4 text-center font-serif text-lg text-gray-800">Review changes</h2>
       <p className="mx-auto mt-2 max-w-2xl text-center text-sm text-gray-600">
-        Left: current official text. Right: submitted working copy. Changed sections are highlighted — choose Accept or
-        Reject for each.
+        Changed sections use a line diff: removals on the left, additions on the right. Choose Accept or Reject for each
+        section.
       </p>
+      <LineDiffLegend className="mt-4" />
 
       <div className="mt-10 space-y-10">
         {officialDocument.sections.map((officialSec, index) => {
@@ -82,18 +83,24 @@ export function ReviewCompareView({
               )}
               <h3 className={titleClass}>{officialSec.title}</h3>
 
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Official Version</p>
-                  <textarea readOnly className={`${readOnlyBox} min-h-[120px]`} value={officialSec.body} rows={6} />
+              {changed ? (
+                <div className="mt-4">
+                  <LineDiffPanels oldText={officialSec.body} newText={sub.body} />
                 </div>
-                <div>
-                  <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                    Submitted Working Copy
-                  </p>
-                  <textarea readOnly className={`${readOnlyBox} min-h-[120px]`} value={sub.body} rows={6} />
+              ) : (
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">Official Version</p>
+                    <textarea readOnly className={`${readOnlyBox} min-h-[120px]`} value={officialSec.body} rows={6} />
+                  </div>
+                  <div>
+                    <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                      Submitted Working Copy
+                    </p>
+                    <textarea readOnly className={`${readOnlyBox} min-h-[120px]`} value={sub.body} rows={6} />
+                  </div>
                 </div>
-              </div>
+              )}
 
               {changed ? (
                 <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-gray-200/80 pt-4">

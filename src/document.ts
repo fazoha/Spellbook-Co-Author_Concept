@@ -32,6 +32,10 @@ export type ReviewRequest = {
 
 export type DocumentModel = {
   sections: DocumentSectionData[]
+  /** Stable id for this upload in a multi-document workspace */
+  workspaceId?: string
+  /** Shown in the workspace header (e.g. uploaded file name without .docx) */
+  documentTitle?: string
   /** Official document only: changes when a new official version is published */
   versionId?: string
   /** Working copy: official version this branch started from */
@@ -144,6 +148,8 @@ export function mergeOfficialWithDecisions(
 ): DocumentModel {
   return {
     versionId: crypto.randomUUID(),
+    workspaceId: official.workspaceId,
+    documentTitle: official.documentTitle,
     sections: official.sections.map((s) => {
       if (acceptedSectionIds.has(s.id)) {
         const w = working.sections.find((ws) => ws.id === s.id)

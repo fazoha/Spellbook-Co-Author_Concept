@@ -1,6 +1,19 @@
-import type { ReviewRequest, SavedUpdate } from '../document'
+import { useRef } from 'react'
+
+import type { DocumentModel, ReviewRequest, SavedUpdate } from '../document'
 
 type WorkflowActionPanelProps = {
+  documents: DocumentModel[]
+  activeWorkspaceId: string
+  maxDocuments: number
+  selectedRemovalIds: string[]
+  onToggleRemoval: (workspaceId: string) => void
+  onSelectWorkspace: (workspaceId: string) => void
+  onAddDocumentFile: (file: File) => void | Promise<void>
+  addMoreBusy: boolean
+  addMoreError: string | null
+  onDismissAddMoreError: () => void
+  onRemoveSelected: () => void
   isWorkingCopy: boolean
   workingStatus: 'editing' | 'in_review' | undefined
   saveUpdateNote: string
@@ -60,6 +73,17 @@ function SubmittedWorkingCopyPreview({ request }: { request: ReviewRequest }) {
 }
 
 export function WorkflowActionPanel({
+  documents,
+  activeWorkspaceId,
+  maxDocuments,
+  selectedRemovalIds,
+  onToggleRemoval,
+  onSelectWorkspace,
+  onAddDocumentFile,
+  addMoreBusy,
+  addMoreError,
+  onDismissAddMoreError,
+  onRemoveSelected,
   isWorkingCopy,
   workingStatus,
   saveUpdateNote,
@@ -75,9 +99,12 @@ export function WorkflowActionPanel({
   savedUpdates,
   reviewRequests,
 }: WorkflowActionPanelProps) {
+  const moreFileInputRef = useRef<HTMLInputElement>(null)
   const isEditing = workingStatus === 'editing'
   const canSendForReview = isWorkingCopy && isEditing
   const inReview = workingStatus === 'in_review'
+  const atDocLimit = documents.length >= maxDocuments
+  const hasRemovalSelection = selectedRemovalIds.length > 0
 
   return (
     <aside className="flex min-h-0 w-64 shrink-0 flex-col border-l border-gray-200 bg-gray-50 lg:w-72">
@@ -87,6 +114,94 @@ export function WorkflowActionPanel({
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="shrink-0 space-y-3 border-b border-gray-200 p-4">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Open documents</h3>
+          <p className="text-xs leading-snug text-gray-500">
+            Up to {maxDocuments} files (MVP). Click a name to work on it; check the box to mark it for removal.
+          </p>
+          <ul className="space-y-1.5" aria-label="Uploaded documents">
+            {documents.map((doc) => {
+              const id = doc.workspaceId
+              if (!id) return null
+              const title = doc.documentTitle ?? 'Document'
+              const active = id === activeWorkspaceId
+              const checked = selectedRemovalIds.includes(id)
+              return (
+                <li
+                  key={id}
+                  className={`flex items-start gap-2 rounded-lg border px-2 py-2 transition-colors ${
+                    active ? 'border-blue-300 bg-blue-50/70' : 'border-gray-200 bg-white'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => onToggleRemoval(id)}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500/30"
+                    aria-label={`Select “${title}” for removal`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => onSelectWorkspace(id)}
+                    className="min-w-0 flex-1 text-left text-sm font-medium text-gray-900 hover:text-blue-800"
+                  >
+                    <span className="line-clamp-2">{title}</span>
+                    {active ? (
+                      <span className="mt-0.5 block text-[11px] font-normal text-blue-700">Active</span>
+                    ) : null}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+
+          <input
+            ref={moreFileInputRef}
+            type="file"
+            accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            className="sr-only"
+            disabled={atDocLimit || addMoreBusy}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void Promise.resolve(onAddDocumentFile(f)).finally(() => {
+                e.target.value = ''
+              })
+            }}
+          />
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => moreFileInputRef.current?.click()}
+              disabled={atDocLimit || addMoreBusy}
+              title={atDocLimit ? `Maximum ${maxDocuments} documents` : undefined}
+              className="w-full rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-left text-sm font-semibold text-blue-900 shadow-sm transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+            >
+              {addMoreBusy ? 'Reading file…' : atDocLimit ? `Limit reached (${maxDocuments})` : 'Upload another .docx'}
+            </button>
+            <button
+              type="button"
+              onClick={onRemoveSelected}
+              disabled={!hasRemovalSelection}
+              className="w-full rounded-lg border border-red-200 bg-white px-3 py-2.5 text-left text-sm font-semibold text-red-800 shadow-sm transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-100 disabled:text-gray-400"
+            >
+              Remove selected
+            </button>
+          </div>
+
+          {addMoreError ? (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+              <p>{addMoreError}</p>
+              <button
+                type="button"
+                onClick={onDismissAddMoreError}
+                className="mt-2 text-[11px] font-semibold text-red-900 underline"
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : null}
+        </div>
+
         <nav className="shrink-0 space-y-2 border-b border-gray-200 p-4" aria-label="Document actions">
           <button
             type="button"
