@@ -1,15 +1,8 @@
+import spellbookMark from '../assets/spellbook-mark.png'
+
 export function SpellbookLogo({ className = 'h-8 w-8' }: { className?: string }) {
   return (
-    <svg className={className} viewBox="0 0 32 32" fill="none" aria-hidden>
-      <path d="M16 2L28 10V22L16 30L4 22V10L16 2Z" fill="url(#spellbook-grad)" />
-      <defs>
-        <linearGradient id="spellbook-grad" x1="4" y1="2" x2="28" y2="30" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#6366F1" />
-          <stop offset="0.5" stopColor="#A855F7" />
-          <stop offset="1" stopColor="#EC4899" />
-        </linearGradient>
-      </defs>
-    </svg>
+    <img src={spellbookMark} alt="" className={`object-contain ${className}`} aria-hidden />
   )
 }
 

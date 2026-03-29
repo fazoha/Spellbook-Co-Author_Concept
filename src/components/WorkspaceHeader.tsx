@@ -1,5 +1,3 @@
-import { IconClock } from './icons'
-
 export type WorkspaceBadgeTone = 'official' | 'working' | 'in_review'
 
 type WorkspaceHeaderProps = {
@@ -16,7 +14,7 @@ const badgeToneClass: Record<WorkspaceBadgeTone, string> = {
 
 export function WorkspaceHeader({ documentTitle, versionLabel, badgeTone }: WorkspaceHeaderProps) {
   return (
-    <header className="flex shrink-0 flex-wrap items-start justify-between gap-4 border-b border-gray-200 bg-white px-6 py-4">
+    <header className="flex shrink-0 flex-wrap items-center gap-4 border-b border-gray-200 bg-white px-6 py-4">
       <div className="min-w-0 flex flex-wrap items-center gap-3">
         <h1 className="truncate text-lg font-semibold tracking-tight text-gray-900 md:text-xl">{documentTitle}</h1>
         <span
@@ -24,18 +22,6 @@ export function WorkspaceHeader({ documentTitle, versionLabel, badgeTone }: Work
         >
           {versionLabel}
         </span>
-      </div>
-      <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <div className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-600">
-          <IconClock className="text-gray-500" />
-          <span>Trial: 6 days</span>
-        </div>
-        <button
-          type="button"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-        >
-          Upgrade
-        </button>
       </div>
     </header>
   )
