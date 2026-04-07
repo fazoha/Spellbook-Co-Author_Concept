@@ -1,5 +1,5 @@
 import type { DocumentModel, DocumentSectionData, SectionOverlap, WorkingDocumentStatus } from '../document'
-import { DocumentViewer } from './DocumentViewer'
+import { DocumentViewer, type Annotation } from './DocumentViewer'
 import { RebaseOverlapView } from './RebaseOverlapView'
 import { ReviewCompareView } from './ReviewCompareView'
 import { WorkspaceHeader, type WorkspaceBadgeTone } from './WorkspaceHeader'
@@ -38,6 +38,9 @@ type MainDocumentAreaProps = {
   } | null
   /** Collab server base URL; Co-Author calls POST /api/coauthor there. */
   coauthorApiBaseUrl?: string | null
+  annotations: Annotation[]
+  onDismissAnnotation: (sectionId: string, quote: string) => void
+  onApplyAnnotation: (sectionId: string, annotation: Annotation) => void
 }
 
 function workspaceBadge(
@@ -72,6 +75,9 @@ export function MainDocumentArea({
   onApplyRebaseMerge,
   collabOwnerReview,
   coauthorApiBaseUrl,
+  annotations,
+  onDismissAnnotation,
+  onApplyAnnotation,
 }: MainDocumentAreaProps) {
   const { label, tone } = workspaceBadge(isWorkingCopy, workingStatus, collabOwnerReview)
   const inReview = (isWorkingCopy && workingStatus === 'in_review') || Boolean(collabOwnerReview)
@@ -133,6 +139,9 @@ export function MainDocumentArea({
             }
             onSectionBodyChange={onSectionBodyChange}
             coauthorApiBase={coauthorApiBaseUrl}
+            annotations={annotations}
+            onDismissAnnotation={onDismissAnnotation}
+            onApplyAnnotation={onApplyAnnotation}
           />
         )}
       </div>

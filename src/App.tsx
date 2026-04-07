@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { CollabPanel } from './components/CollabPanel'
+import type { Annotation } from './components/DocumentViewer'
 import { LeftSidebar } from './components/LeftSidebar'
 import { MainDocumentArea, type RebaseSessionState } from './components/MainDocumentArea'
 import { WorkflowActionPanel } from './components/WorkflowActionPanel'
@@ -54,6 +55,8 @@ export default function App() {
   const [collabServerUrl, setCollabServerUrl] = useState(
     () => String(import.meta.env.VITE_COLLAB_URL ?? 'http://localhost:3030'),
   )
+  const [annotations, setAnnotations] = useState<Annotation[]>([])
+  const scanTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [collabOwnerReview, setCollabOwnerReview] = useState<CollabOwnerReviewState | null>(null)
   const [collabRemoteAccepted, setCollabRemoteAccepted] = useState<string[]>([])
   const [collabRemoteRejected, setCollabRemoteRejected] = useState<string[]>([])
@@ -168,6 +171,57 @@ export default function App() {
       ...prev,
       [workspaceId]: { ...(prev[workspaceId] ?? emptySession()), ...patch },
     }))
+  }, [])
+
+  const scanDocument = useCallback(async (doc: DocumentModel, serverUrl: string) => {
+    const base = serverUrl.replace(/\/$/, '')
+    if (!base) return
+    try {
+      const res = await fetch(`${base}/api/scan-document`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sections: doc.sections.map((s) => ({ id: s.id, title: s.title, body: s.body })),
+        }),
+      })
+      const data = await res.json().catch(() => ({})) as { annotations?: Annotation[] }
+      if (res.ok && Array.isArray(data.annotations)) {
+        setAnnotations(data.annotations)
+      }
+    } catch {
+      // Scan failures are silent — don't interrupt the user
+    }
+  }, [])
+
+  // Auto-scan when the active official document changes (load or collab push)
+  useEffect(() => {
+    if (!officialDocument) return
+    if (scanTimerRef.current) clearTimeout(scanTimerRef.current)
+    scanTimerRef.current = setTimeout(() => {
+      void scanDocument(officialDocument, collabServerUrl)
+    }, 800)
+    return () => {
+      if (scanTimerRef.current) clearTimeout(scanTimerRef.current)
+    }
+  }, [officialDocument, collabServerUrl, scanDocument])
+
+  const handleDismissAnnotation = useCallback((_sectionId: string, quote: string) => {
+    setAnnotations((prev) => prev.filter((a) => a.quote !== quote))
+  }, [])
+
+  const handleApplyAnnotation = useCallback((sectionId: string, annotation: Annotation) => {
+    setSessions((prev) => {
+      const wid = Object.keys(prev).find((k) => prev[k].workingDocument?.sections.some(s => s.id === sectionId))
+        ?? Object.keys(prev)[0]
+      if (!wid) return prev
+      const s = prev[wid]
+      if (!s.workingDocument) return prev
+      const updatedSections = s.workingDocument.sections.map((sec) =>
+        sec.id === sectionId ? { ...sec, body: sec.body.replace(annotation.quote, annotation.suggestion) } : sec
+      )
+      return { ...prev, [wid]: { ...s, workingDocument: { ...s.workingDocument, sections: updatedSections } } }
+    })
+    setAnnotations((prev) => prev.filter((a) => a.quote !== annotation.quote))
   }, [])
 
   const isWorkingCopy = workingDocument !== null
@@ -679,6 +733,9 @@ export default function App() {
                 : null
             }
             coauthorApiBaseUrl={collabServerUrl}
+            annotations={annotations}
+            onDismissAnnotation={handleDismissAnnotation}
+            onApplyAnnotation={handleApplyAnnotation}
           />
           <WorkflowActionPanel
             documents={officialDocuments}

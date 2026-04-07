@@ -155,10 +155,89 @@ The user highlighted ONLY this excerpt. Analyze **only** this passage — do not
   res.end(JSON.stringify({ markdown: reply, model: OPENAI_MODEL, truncated }))
 }
 
+async function handleScanDocument(req, res) {
+  const headers = { 'Content-Type': 'application/json', ...corsHeaders(req) }
+
+  if (!OPENAI_KEY?.trim()) {
+    res.writeHead(503, headers)
+    res.end(JSON.stringify({ error: 'Server missing OPENAI_API_KEY.' }))
+    return
+  }
+
+  let body
+  try {
+    const raw = await readBody(req)
+    body = JSON.parse(raw || '{}')
+  } catch {
+    res.writeHead(400, headers)
+    res.end(JSON.stringify({ error: 'Invalid JSON body' }))
+    return
+  }
+
+  const sections = Array.isArray(body.sections) ? body.sections : []
+  if (sections.length === 0) {
+    res.writeHead(400, headers)
+    res.end(JSON.stringify({ error: 'No sections provided' }))
+    return
+  }
+
+  const sectionList = sections
+    .map((s, i) => {
+      const text = typeof s.body === 'string' ? s.body.slice(0, 4000) : ''
+      return `Section ${i + 1} [id:${s.id}] "${s.title || 'Untitled'}":\n${text}`
+    })
+    .join('\n\n---\n\n')
+
+  const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENAI_KEY.trim()}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.2,
+      max_tokens: 2000,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are Co-Author, a contract review assistant. Analyze the contract sections provided and return a JSON array of annotations. Each annotation must be an object with exactly these fields:\n- "sectionId": the id from the section header (e.g. "abc123")\n- "quote": the EXACT verbatim phrase from the text that is problematic (5-15 words, must exist verbatim in the section text)\n- "issue": one sentence describing the problem\n- "suggestion": the exact replacement text for the quoted phrase only\n\nReturn ONLY a valid JSON array, no markdown, no explanation. If a section has no issues, omit it. Maximum 2 annotations per section.',
+        },
+        {
+          role: 'user',
+          content: `Analyze these contract sections and return a JSON array of annotations:\n\n${sectionList}`,
+        },
+      ],
+    }),
+  })
+
+  const data = await openaiRes.json().catch(() => ({}))
+  if (!openaiRes.ok) {
+    const msg = data?.error?.message || 'OpenAI request failed'
+    res.writeHead(502, headers)
+    res.end(JSON.stringify({ error: msg }))
+    return
+  }
+
+  const reply = data?.choices?.[0]?.message?.content?.trim() ?? '[]'
+  let annotations = []
+  try {
+    const cleaned = reply.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim()
+    annotations = JSON.parse(cleaned)
+    if (!Array.isArray(annotations)) annotations = []
+  } catch {
+    annotations = []
+  }
+
+  res.writeHead(200, headers)
+  res.end(JSON.stringify({ annotations }))
+}
+
 async function handleHttp(req, res) {
   const url = req.url?.split('?')[0] || ''
 
-  if (req.method === 'OPTIONS' && url === '/api/coauthor') {
+  if (req.method === 'OPTIONS' && (url === '/api/coauthor' || url === '/api/scan-document')) {
     res.writeHead(204, corsHeaders(req))
     res.end()
     return
@@ -169,6 +248,17 @@ async function handleHttp(req, res) {
       await handleCoauthor(req, res)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Co-Author request failed'
+      res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders(req) })
+      res.end(JSON.stringify({ error: msg }))
+    }
+    return
+  }
+
+  if (req.method === 'POST' && url === '/api/scan-document') {
+    try {
+      await handleScanDocument(req, res)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Scan request failed'
       res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders(req) })
       res.end(JSON.stringify({ error: msg }))
     }
