@@ -2,7 +2,8 @@
 
 A real-time collaborative contract editing platform with automatic AI clause analysis. Built as an MVP to explore how legal teams could work together on documents with AI assistance embedded directly into the workflow.
 
-**Live:** [spellbook-co-author-concept-kumyzszkt-fazohas-projects.vercel.app](https://spellbook-co-author-concept-kumyzszkt-fazohas-projects.vercel.app)
+**Live:** [spellbook-co-author-concept-kumyzszkt-fazohas-projects.vercel.app](https://spellbook-co-author-concept-kumyzszkt-fazohas-projects.vercel.app)  
+**Demo:** [Watch the walkthrough](https://drive.google.com/file/d/1z1Vx03R_1HXBCra0HtyC1OEWjc3snDHC/view?usp=sharing)
 
 ---
 
