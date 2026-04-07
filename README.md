@@ -1,73 +1,49 @@
-# React + TypeScript + Vite
+# Spellbook — AI Co-Author & Contract Collaboration
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A real-time collaborative contract editing tool with AI-powered clause analysis.
 
-Currently, two official plugins are available:
+## What it does
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Upload a contract (`.docx`) and edit it section by section
+- Collaborate live with others using a 6-character room code
+- Get AI feedback on any clause — issues flagged, suggestions provided
+- Owner/editor workflow: editors submit changes, owner reviews and merges them
+- Conflict resolution when multiple people edit the same section
 
-## React Compiler
+## Live App
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+[spellbook-co-author-concept-kumyzszkt-fazohas-projects.vercel.app](https://spellbook-co-author-concept-kumyzszkt-fazohas-projects.vercel.app)
 
-## Expanding the ESLint configuration
+## Running locally
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+**Install dependencies:**
+```bash
+npm install
+npm install --prefix server
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+**Add your OpenAI key:**
+```bash
+# Create a .env file in the project root
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4o-mini
 ```
+
+**Start the app:**
+```bash
+# Single instance
+npm run dev:full
+
+# Two instances (ports 5174, 5175) — for testing collaboration
+npm run dev:double
+
+# Three instances (ports 5174, 5175, 5176)
+npm run dev:triple
+```
+
+## Tech stack
+
+- **Frontend:** React, TypeScript, Vite, Tailwind CSS
+- **Realtime:** Socket.io
+- **AI:** OpenAI API (gpt-4o-mini)
+- **Hosting:** Vercel (frontend) + Railway (server)
