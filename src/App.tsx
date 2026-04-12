@@ -61,6 +61,7 @@ export default function App() {
   const [collabRemoteAccepted, setCollabRemoteAccepted] = useState<string[]>([])
   const [collabRemoteRejected, setCollabRemoteRejected] = useState<string[]>([])
   const [editorSubmitToOwnerAckOpen, setEditorSubmitToOwnerAckOpen] = useState(false)
+  const [collabDisplayName, setCollabDisplayName] = useState('')
 
   const collabInRoomRef = useRef(false)
   const collabRoleRef = useRef<'owner' | 'editor' | null>(null)
@@ -95,6 +96,7 @@ export default function App() {
               overlaps,
               draftSections: mergedSections,
               resolutions: {},
+              combinedTexts: {},
             },
           },
         }
@@ -212,17 +214,33 @@ export default function App() {
   const handleApplyAnnotation = useCallback((sectionId: string, annotation: Annotation) => {
     setSessions((prev) => {
       const wid = Object.keys(prev).find((k) => prev[k].workingDocument?.sections.some(s => s.id === sectionId))
+        ?? Object.keys(prev).find((k) => officialDocuments.find(o => o.workspaceId === k)?.sections.some(s => s.id === sectionId))
         ?? Object.keys(prev)[0]
       if (!wid) return prev
       const s = prev[wid]
-      if (!s.workingDocument) return prev
-      const updatedSections = s.workingDocument.sections.map((sec) =>
+
+      // If no working copy, auto-create one from the official document (like clicking Start Working)
+      const official = officialDocuments.find(o => o.workspaceId === wid)
+      const base = s.workingDocument ?? (official ? {
+        sections: structuredClone(official.sections),
+        savedUpdates: [],
+        status: 'editing' as const,
+        reviewRequests: [],
+        basedOnVersionId: official.versionId!,
+        branchBaseSections: structuredClone(official.sections),
+        documentTitle: official.documentTitle,
+        workspaceId: official.workspaceId,
+      } : null)
+
+      if (!base || base.status !== 'editing') return prev
+
+      const updatedSections = base.sections.map((sec) =>
         sec.id === sectionId ? { ...sec, body: sec.body.replace(annotation.quote, annotation.suggestion) } : sec
       )
-      return { ...prev, [wid]: { ...s, workingDocument: { ...s.workingDocument, sections: updatedSections } } }
+      return { ...prev, [wid]: { ...s, workingDocument: { ...base, sections: updatedSections } } }
     })
     setAnnotations((prev) => prev.filter((a) => a.quote !== annotation.quote))
-  }, [])
+  }, [officialDocuments])
 
   const isWorkingCopy = workingDocument !== null
 
@@ -539,6 +557,23 @@ export default function App() {
       return
     }
 
+    // Solo mode: make official directly from editing, accepting all changes
+    if (soloMode && workingDocument && workingStatus === 'editing') {
+      const toAccept = new Set(getChangedSectionIds(officialDocument, workingDocument))
+      const merged = mergeOfficialWithDecisions(officialDocument, workingDocument, toAccept)
+      setOfficialDocuments((prev) =>
+        prev.map((o) => (o.workspaceId === activeWorkspaceId ? merged : o)),
+      )
+      patchSession(activeWorkspaceId, {
+        workingDocument: null,
+        saveUpdateNote: '',
+        acceptedSectionIds: [],
+        rejectedSectionIds: [],
+        rebaseSession: null,
+      })
+      return
+    }
+
     if (!workingDocument || workingStatus !== 'in_review') return
     if (!allChangedSectionsDecided) return
 
@@ -582,11 +617,12 @@ export default function App() {
         overlaps,
         draftSections: mergedSections,
         resolutions: {},
+        combinedTexts: {},
       },
     })
   }
 
-  function handleRebaseChoose(sectionId: string, choice: 'official' | 'mine') {
+  function handleRebaseChoose(sectionId: string, choice: 'official' | 'mine' | 'combined') {
     if (!activeWorkspaceId) return
     setSessions((prev) => {
       const s = prev[activeWorkspaceId] ?? emptySession()
@@ -604,6 +640,24 @@ export default function App() {
     })
   }
 
+  function handleRebaseCombinedText(sectionId: string, text: string) {
+    if (!activeWorkspaceId) return
+    setSessions((prev) => {
+      const s = prev[activeWorkspaceId] ?? emptySession()
+      if (!s.rebaseSession) return prev
+      return {
+        ...prev,
+        [activeWorkspaceId]: {
+          ...s,
+          rebaseSession: {
+            ...s.rebaseSession,
+            combinedTexts: { ...s.rebaseSession.combinedTexts, [sectionId]: text },
+          },
+        },
+      }
+    })
+  }
+
   function handleApplyRebaseMerge() {
     if (!activeWorkspaceId || !rebaseSession || !workingDocument) return
     const { overlaps, draftSections, resolutions } = rebaseSession
@@ -613,7 +667,8 @@ export default function App() {
     const finalSections = applyOverlapResolutions(
       draftSections,
       overlaps,
-      resolutions as Record<string, 'official' | 'mine'>,
+      resolutions as Record<string, 'official' | 'mine' | 'combined'>,
+      rebaseSession.combinedTexts,
     )
 
     patchSession(activeWorkspaceId, {
@@ -640,6 +695,8 @@ export default function App() {
             connecting: collab.status === 'connecting',
             error: collab.error,
             onClearError: collab.clearError,
+            joinName: collabDisplayName,
+            onJoinNameChange: setCollabDisplayName,
           }}
         />
       </div>
@@ -658,6 +715,7 @@ export default function App() {
   }
 
   const collabEditorInRoom = collab.role === 'editor' && collab.status === 'in_room'
+  const soloMode = collab.status === 'idle'
   const collabOwnerHasUnpublishedEdits =
     collabOwnerInRoom &&
     isWorkingCopy &&
@@ -709,6 +767,7 @@ export default function App() {
             onUpdateToLatest={handleUpdateToLatest}
             rebaseSession={rebaseSession}
             onRebaseChoose={handleRebaseChoose}
+            onRebaseCombinedText={handleRebaseCombinedText}
             onApplyRebaseMerge={handleApplyRebaseMerge}
             collabOwnerReview={
               collabOwnerReview && officialDocument
@@ -733,6 +792,8 @@ export default function App() {
                 : null
             }
             coauthorApiBaseUrl={collabServerUrl}
+            collabDisplayName={collab.status === 'in_room' && collabDisplayName ? collabDisplayName : undefined}
+            collabRole={collab.role}
             annotations={annotations}
             onDismissAnnotation={handleDismissAnnotation}
             onApplyAnnotation={handleApplyAnnotation}
@@ -764,12 +825,15 @@ export default function App() {
                 ? allCollabReviewDecided
                 : collabOwnerHasUnpublishedEdits
                   ? true
-                  : workingStatus === 'in_review' && allChangedSectionsDecided
+                  : soloMode
+                    ? workingStatus === 'editing' && changedSectionIds.length > 0
+                    : workingStatus === 'in_review' && allChangedSectionsDecided
             }
             hideMakeOfficial={collabEditorInRoom}
             collabOwnerReviewActive={Boolean(collabOwnerReview)}
             collabOwnerInRoom={collabOwnerInRoom}
             collabOwnerHasUnpublishedEdits={collabOwnerHasUnpublishedEdits}
+            soloMode={soloMode}
             collabSection={
               <CollabPanel
                 serverUrl={collabServerUrl}
@@ -783,8 +847,10 @@ export default function App() {
                 role={collab.role}
                 members={collab.members}
                 pendingReviews={collab.pendingReviews}
-                onCreateRoom={(displayName) => {
-                  if (officialDocument) collab.createRoom(displayName, officialDocument)
+                displayName={collabDisplayName}
+                onDisplayNameChange={setCollabDisplayName}
+                onCreateRoom={(name) => {
+                  if (officialDocument) collab.createRoom(name, officialDocument)
                 }}
                 onJoinRoom={collab.joinRoom}
                 onDisconnect={() => {

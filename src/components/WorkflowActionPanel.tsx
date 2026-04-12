@@ -39,6 +39,8 @@ type WorkflowActionPanelProps = {
   collabOwnerInRoom?: boolean
   /** Host has section edits not yet merged into shared official. */
   collabOwnerHasUnpublishedEdits?: boolean
+  /** Not in any collab room — solo workflow: no Send for Review needed. */
+  soloMode?: boolean
 }
 
 function formatTime(iso: string): string {
@@ -113,13 +115,14 @@ export function WorkflowActionPanel({
   collabEditorInRoom,
   collabOwnerInRoom = false,
   collabOwnerHasUnpublishedEdits = false,
+  soloMode = false,
 }: WorkflowActionPanelProps) {
   const moreFileInputRef = useRef<HTMLInputElement>(null)
   const isEditing = workingStatus === 'editing'
   const canSendForReview = isWorkingCopy && isEditing
   const inReview = workingStatus === 'in_review'
   const mergeReviewOpen =
-    inReview || Boolean(collabOwnerReviewActive) || Boolean(collabOwnerHasUnpublishedEdits)
+    inReview || Boolean(collabOwnerReviewActive) || Boolean(collabOwnerHasUnpublishedEdits) || (soloMode && isEditing && isWorkingCopy)
   const atDocLimit = documents.length >= maxDocuments
   const hasRemovalSelection = selectedRemovalIds.length > 0
 
@@ -199,6 +202,7 @@ export function WorkflowActionPanel({
             }}
           />
           <div className="flex flex-col gap-2">
+            {!collabEditorInRoom && (
             <button
               type="button"
               onClick={() => moreFileInputRef.current?.click()}
@@ -208,6 +212,7 @@ export function WorkflowActionPanel({
             >
               {addMoreBusy ? 'Reading file…' : atDocLimit ? `Limit reached (${maxDocuments})` : 'Upload another .docx'}
             </button>
+            )}
             <button
               type="button"
               onClick={onRemoveSelected}
@@ -268,7 +273,7 @@ export function WorkflowActionPanel({
             </button>
           ) : null}
 
-          {collabEditorInRoom || collabOwnerInRoom ? null : (
+          {collabEditorInRoom || collabOwnerInRoom || soloMode ? null : (
             <div>
               <button
                 type="button"

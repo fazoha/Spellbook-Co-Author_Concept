@@ -20,6 +20,9 @@ type CollabPanelProps = {
   onStartReview: (review: CollabPendingReview) => void
   activeRemoteReviewId: string | null
   onCancelRemoteReview: () => void
+  /** Controlled display name (lifted to App so header can show it). */
+  displayName: string
+  onDisplayNameChange: (name: string) => void
   /** Editors: submit working copy so the official owner can review (same action as “Submit to owner” in Next steps). */
   onSubmitToOwner?: () => void
   editorSubmitToOwnerEnabled?: boolean
@@ -43,10 +46,11 @@ export function CollabPanel({
   onStartReview,
   activeRemoteReviewId,
   onCancelRemoteReview,
+  displayName,
+  onDisplayNameChange,
   onSubmitToOwner,
   editorSubmitToOwnerEnabled = false,
 }: CollabPanelProps) {
-  const [name, setName] = useState('')
   const [joinCode, setJoinCode] = useState('')
   const inRoom = status === 'in_room'
 
@@ -77,8 +81,8 @@ export function CollabPanel({
             Your name
             <input
               type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
+              value={displayName}
+              onChange={(e) => onDisplayNameChange(e.target.value)}
               placeholder="e.g. Alex"
               className="mt-1 w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs text-gray-900"
             />
@@ -86,9 +90,9 @@ export function CollabPanel({
           <div className="flex flex-col gap-2">
             <button
               type="button"
-              disabled={!canCreateRoom || !name.trim() || status === 'connecting'}
+              disabled={!canCreateRoom || !displayName.trim() || status === 'connecting'}
               title={!canCreateRoom ? 'Open a document first' : undefined}
-              onClick={() => onCreateRoom(name.trim())}
+              onClick={() => onCreateRoom(displayName.trim())}
               className="w-full rounded-lg bg-slate-800 px-3 py-2 text-left text-xs font-semibold text-white shadow-sm hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-gray-300"
             >
               Create session (you = official owner)
@@ -104,8 +108,8 @@ export function CollabPanel({
               />
               <button
                 type="button"
-                disabled={!joinCode.trim() || !name.trim() || status === 'connecting'}
-                onClick={() => onJoinRoom(joinCode.trim(), name.trim())}
+                disabled={!joinCode.trim() || !displayName.trim() || status === 'connecting'}
+                onClick={() => onJoinRoom(joinCode.trim(), displayName.trim())}
                 className="shrink-0 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Join

@@ -10,7 +10,25 @@ const STYLE_MAP = [
   "p[style-name='Title'] => h1:fresh",
 ].join('\n')
 
-const HEADING_TAGS = new Set(['H1', 'H2', 'H3'])
+/** Top-level numbered clause only: "1. Title", "12. Something" — NOT sub-clauses like "1.1" */
+const NUMBERED_CLAUSE_RE = /^\d+\.\s+\S/
+
+/** ALL-CAPS heading: at least 3 chars, no lowercase, not too long */
+function isAllCapsHeading(text: string): boolean {
+  const t = text.trim()
+  return t.length >= 3 && t.length <= 80 && t === t.toUpperCase() && /[A-Z]/.test(t)
+}
+
+/** Fully-bold paragraph: ≥90% of text is wrapped in <strong> or <b> */
+function isFullyBold(el: Element): boolean {
+  const text = el.textContent?.trim() ?? ''
+  if (!text || text.length > 80) return false
+  const boldText = Array.from(el.querySelectorAll('strong, b'))
+    .map((b) => b.textContent ?? '')
+    .join('')
+    .trim()
+  return boldText.length > 0 && boldText.length >= text.length * 0.9
+}
 
 function slugFragment(title: string, index: number): string {
   const slug = title
@@ -23,7 +41,10 @@ function slugFragment(title: string, index: number): string {
 
 /**
  * Split mammoth HTML into sections using h1–h3 as boundaries.
- * Leading paragraphs become one section titled "Document".
+ * When no Word heading styles are present, falls back to detecting implicit
+ * headings: numbered clauses (e.g. "1. Payment Terms"), ALL-CAPS lines,
+ * and fully-bold short paragraphs.
+ * Leading paragraphs before the first heading become one section titled "Document".
  */
 export function htmlToSections(html: string): { title: string; body: string }[] {
   const trimmed = html.trim()
@@ -33,6 +54,19 @@ export function htmlToSections(html: string): { title: string; body: string }[] 
   const doc = parser.parseFromString(`<div class="docx-root">${trimmed}</div>`, 'text/html')
   const root = doc.querySelector('.docx-root')
   if (!root) return []
+
+  const children = Array.from(root.children)
+
+  const h1Elements = children.filter((c) => c.tagName === 'H1')
+  const h2Elements = children.filter((c) => c.tagName === 'H2')
+
+  // Three structural modes:
+  // 1. Multiple H1s → H1 = section boundary, H2/H3 = subsections folded into body
+  // 2. Single H1 (title) + H2s → H1 is decorative title (skip), H2 = section boundary
+  // 3. No H1/H2/H3 → implicit detection (numbered clauses, ALL-CAPS, bold)
+  const titleOnlyH1 = h1Elements.length === 1 && h2Elements.length > 0
+  const effectiveBoundaryTag = titleOnlyH1 ? 'H2' : 'H1'
+  const hasWordHeadings = h1Elements.length > 1 || h2Elements.length > 0
 
   const sections: { title: string; body: string }[] = []
   let pendingTitle: string | null = null
@@ -51,13 +85,32 @@ export function htmlToSections(html: string): { title: string; body: string }[] 
     bodyParts = []
   }
 
-  for (const child of Array.from(root.children)) {
-    if (HEADING_TAGS.has(child.tagName)) {
+  for (const child of children) {
+    const text = textFromEl(child)
+    const isSectionBoundary = child.tagName === effectiveBoundaryTag
+    const isSubsection = child.tagName === 'H2' || child.tagName === 'H3'
+    const isDecorativeTitle = titleOnlyH1 && child.tagName === 'H1'
+    const isImplicitHeading =
+      !hasWordHeadings &&
+      child.tagName === 'P' &&
+      text.length > 0 &&
+      (NUMBERED_CLAUSE_RE.test(text) || isAllCapsHeading(text) || isFullyBold(child))
+
+    if (isDecorativeTitle) {
+      // Single decorative title H1 — skip it, don't create a section
+      continue
+    }
+
+    if (isSectionBoundary || isImplicitHeading) {
+      // Clause heading: start a new section
       if (pendingTitle !== null || bodyParts.length > 0) flush()
-      pendingTitle = textFromEl(child) || 'Untitled'
+      pendingTitle = text || 'Untitled'
+    } else if (!titleOnlyH1 && isSubsection) {
+      // H2/H3 sub-clauses (only in multi-H1 mode): fold into parent section body
+      if (text.length > 0) bodyParts.push(text)
     } else {
-      const t = textFromEl(child)
-      if (t.length > 0) bodyParts.push(t)
+      // Regular paragraph or list item: body text
+      if (text.length > 0) bodyParts.push(text)
     }
   }
   flush()

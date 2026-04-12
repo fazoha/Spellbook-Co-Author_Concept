@@ -180,16 +180,28 @@ function AnnotationCard({
   annotation,
   onDismiss,
   onApply,
+  onClose,
 }: {
   annotation: Annotation
   onDismiss: () => void
   onApply: (a: Annotation) => void
+  onClose: () => void
 }) {
   const [confirming, setConfirming] = useState(false)
 
   return (
     <div className="rounded-xl border border-amber-200 bg-white p-4 shadow-md text-sm">
-      <p className="font-semibold text-amber-900 text-xs uppercase tracking-wide mb-1">AI Flag</p>
+      <div className="flex items-center justify-between mb-1">
+        <p className="font-semibold text-amber-900 text-xs uppercase tracking-wide">AI Flag</p>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-gray-400 hover:text-gray-600 text-base leading-none"
+          aria-label="Collapse"
+        >
+          ×
+        </button>
+      </div>
       <p className="text-gray-700 leading-snug mb-3">{annotation.issue}</p>
 
       {confirming ? (
@@ -320,6 +332,7 @@ function DocumentSection({
                     annotation={a}
                     onDismiss={() => handleDismiss(a.quote)}
                     onApply={handleApply}
+                    onClose={() => setActiveAnnotation(null)}
                   />
                 ) : (
                   <button

@@ -261,13 +261,15 @@ export function computeUpdateToLatest(
 export function applyOverlapResolutions(
   draftSections: DocumentSectionData[],
   overlaps: SectionOverlap[],
-  resolutions: Record<string, 'official' | 'mine'>,
+  resolutions: Record<string, 'official' | 'mine' | 'combined'>,
+  combinedTexts: Record<string, string> = {},
 ): DocumentSectionData[] {
   return draftSections.map((s) => {
     const o = overlaps.find((x) => x.sectionId === s.id)
     if (!o) return s
     const r = resolutions[o.sectionId]
     if (!r) return s
+    if (r === 'combined') return { ...s, body: combinedTexts[o.sectionId] ?? o.mineBody }
     return { ...s, body: r === 'official' ? o.officialBody : o.mineBody }
   })
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { DocumentSectionData, SectionOverlap } from '../document'
 
 const readOnlyBox =
@@ -6,10 +7,12 @@ const readOnlyBox =
 type RebaseOverlapViewProps = {
   overlaps: SectionOverlap[]
   draftSections: DocumentSectionData[]
-  resolutions: Record<string, 'official' | 'mine' | undefined>
-  onChoose: (sectionId: string, choice: 'official' | 'mine') => void
+  resolutions: Record<string, 'official' | 'mine' | 'combined' | undefined>
+  onChoose: (sectionId: string, choice: 'official' | 'mine' | 'combined') => void
+  onCombinedText: (sectionId: string, text: string) => void
   onApplyMerge: () => void
   canApply: boolean
+  coauthorApiBaseUrl?: string | null
 }
 
 export function RebaseOverlapView({
@@ -17,9 +20,32 @@ export function RebaseOverlapView({
   draftSections,
   resolutions,
   onChoose,
+  onCombinedText,
   onApplyMerge,
   canApply,
+  coauthorApiBaseUrl,
 }: RebaseOverlapViewProps) {
+  const [loadingIds, setLoadingIds] = useState<Record<string, boolean>>({})
+
+  async function handleCombine(o: SectionOverlap) {
+    setLoadingIds((prev) => ({ ...prev, [o.sectionId]: true }))
+    try {
+      const base = coauthorApiBaseUrl ?? 'http://localhost:3030'
+      const res = await fetch(`${base}/api/merge-sections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ officialBody: o.officialBody, mineBody: o.mineBody, sectionTitle: o.title }),
+      })
+      const data = await res.json()
+      if (data.merged) {
+        onCombinedText(o.sectionId, data.merged)
+        onChoose(o.sectionId, 'combined')
+      }
+    } finally {
+      setLoadingIds((prev) => ({ ...prev, [o.sectionId]: false }))
+    }
+  }
+
   return (
     <article className="mx-auto w-full max-w-4xl rounded-lg border border-amber-200 bg-amber-50/40 px-4 py-8 shadow-sm md:px-8 md:py-10">
       <h2 className="text-center font-serif text-xl text-gray-900">Overlapping edits</h2>
@@ -31,6 +57,7 @@ export function RebaseOverlapView({
       <div className="mt-10 space-y-10">
         {overlaps.map((o) => {
           const chosen = resolutions[o.sectionId]
+          const isLoading = loadingIds[o.sectionId] ?? false
           return (
             <section
               key={o.sectionId}
@@ -78,9 +105,21 @@ export function RebaseOverlapView({
                 >
                   Keep mine
                 </button>
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => handleCombine(o)}
+                  className={`rounded-lg px-4 py-2 text-sm font-semibold shadow-sm disabled:cursor-not-allowed disabled:opacity-60 ${
+                    chosen === 'combined'
+                      ? 'bg-violet-700 text-white'
+                      : 'bg-white text-violet-900 ring-1 ring-violet-300 hover:bg-violet-50'
+                  }`}
+                >
+                  {isLoading ? 'Combining…' : 'Combine Both (AI)'}
+                </button>
                 {chosen ? (
                   <span className="self-center text-xs text-gray-600">
-                    Selected: {chosen === 'official' ? 'Official' : 'Mine'}
+                    Selected: {chosen === 'official' ? 'Official' : chosen === 'mine' ? 'Mine' : 'AI Combined'}
                   </span>
                 ) : (
                   <span className="self-center text-xs text-amber-800">Choose one option</span>

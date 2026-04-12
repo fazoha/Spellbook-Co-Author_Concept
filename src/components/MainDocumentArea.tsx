@@ -7,7 +7,8 @@ import { WorkspaceHeader, type WorkspaceBadgeTone } from './WorkspaceHeader'
 export type RebaseSessionState = {
   overlaps: SectionOverlap[]
   draftSections: DocumentSectionData[]
-  resolutions: Record<string, 'official' | 'mine' | undefined>
+  resolutions: Record<string, 'official' | 'mine' | 'combined' | undefined>
+  combinedTexts: Record<string, string>
 }
 
 type MainDocumentAreaProps = {
@@ -25,7 +26,8 @@ type MainDocumentAreaProps = {
   isOfficialNewerThanBranch: boolean
   onUpdateToLatest: () => void
   rebaseSession: RebaseSessionState | null
-  onRebaseChoose: (sectionId: string, choice: 'official' | 'mine') => void
+  onRebaseChoose: (sectionId: string, choice: 'official' | 'mine' | 'combined') => void
+  onRebaseCombinedText: (sectionId: string, text: string) => void
   onApplyRebaseMerge: () => void
   /** Owner reviewing a collaborator’s submitted working copy (live session). */
   collabOwnerReview?: {
@@ -38,6 +40,8 @@ type MainDocumentAreaProps = {
   } | null
   /** Collab server base URL; Co-Author calls POST /api/coauthor there. */
   coauthorApiBaseUrl?: string | null
+  collabDisplayName?: string
+  collabRole?: 'owner' | 'editor' | null
   annotations: Annotation[]
   onDismissAnnotation: (sectionId: string, quote: string) => void
   onApplyAnnotation: (sectionId: string, annotation: Annotation) => void
@@ -72,9 +76,12 @@ export function MainDocumentArea({
   onUpdateToLatest,
   rebaseSession,
   onRebaseChoose,
+  onRebaseCombinedText,
   onApplyRebaseMerge,
   collabOwnerReview,
   coauthorApiBaseUrl,
+  collabDisplayName,
+  collabRole,
   annotations,
   onDismissAnnotation,
   onApplyAnnotation,
@@ -95,6 +102,8 @@ export function MainDocumentArea({
         documentTitle={activeDocument.documentTitle ?? 'Document'}
         versionLabel={label}
         badgeTone={tone}
+        displayName={collabDisplayName}
+        role={collabRole}
       />
       {showOutdatedBanner ? (
         <div
@@ -127,8 +136,10 @@ export function MainDocumentArea({
             draftSections={rebaseSession.draftSections}
             resolutions={rebaseSession.resolutions}
             onChoose={onRebaseChoose}
+            onCombinedText={onRebaseCombinedText}
             onApplyMerge={onApplyRebaseMerge}
             canApply={rebaseCanApply}
+            coauthorApiBaseUrl={coauthorApiBaseUrl}
           />
         ) : (
           <DocumentViewer

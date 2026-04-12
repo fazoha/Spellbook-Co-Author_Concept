@@ -234,10 +234,79 @@ async function handleScanDocument(req, res) {
   res.end(JSON.stringify({ annotations }))
 }
 
+async function handleMergeSections(req, res) {
+  const headers = { 'Content-Type': 'application/json', ...corsHeaders(req) }
+
+  if (!OPENAI_KEY?.trim()) {
+    res.writeHead(503, headers)
+    res.end(JSON.stringify({ error: 'Server missing OPENAI_API_KEY.' }))
+    return
+  }
+
+  let body
+  try {
+    const raw = await readBody(req)
+    body = JSON.parse(raw || '{}')
+  } catch {
+    res.writeHead(400, headers)
+    res.end(JSON.stringify({ error: 'Invalid JSON body' }))
+    return
+  }
+
+  const { officialBody, mineBody, sectionTitle } = body
+  if (!officialBody || !mineBody) {
+    res.writeHead(400, headers)
+    res.end(JSON.stringify({ error: 'officialBody and mineBody are required' }))
+    return
+  }
+
+  const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${OPENAI_KEY.trim()}`,
+    },
+    body: JSON.stringify({
+      model: OPENAI_MODEL,
+      temperature: 0.3,
+      max_tokens: 1000,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are Co-Author, a legal contract drafting assistant. You will be given two versions of the same contract section that were edited independently. Your task is to merge them into one coherent, well-written clause that preserves the intent and substance of both versions. Return ONLY the merged clause text — no explanation, no markdown, no commentary.',
+        },
+        {
+          role: 'user',
+          content: `Merge these two versions of the "${sectionTitle || 'contract section'}" clause into one coherent version:\n\n--- OFFICIAL VERSION ---\n${officialBody}\n\n--- MY VERSION ---\n${mineBody}\n\nReturn only the merged clause text.`,
+        },
+      ],
+    }),
+  })
+
+  const data = await openaiRes.json().catch(() => ({}))
+  if (!openaiRes.ok) {
+    const msg = data?.error?.message || 'OpenAI request failed'
+    res.writeHead(502, headers)
+    res.end(JSON.stringify({ error: msg }))
+    return
+  }
+
+  const merged = data?.choices?.[0]?.message?.content?.trim() ?? ''
+  if (!merged) {
+    res.writeHead(502, headers)
+    res.end(JSON.stringify({ error: 'Empty response from model' }))
+    return
+  }
+
+  res.writeHead(200, headers)
+  res.end(JSON.stringify({ merged }))
+}
+
 async function handleHttp(req, res) {
   const url = req.url?.split('?')[0] || ''
 
-  if (req.method === 'OPTIONS' && (url === '/api/coauthor' || url === '/api/scan-document')) {
+  if (req.method === 'OPTIONS' && (url === '/api/coauthor' || url === '/api/scan-document' || url === '/api/merge-sections')) {
     res.writeHead(204, corsHeaders(req))
     res.end()
     return
@@ -259,6 +328,17 @@ async function handleHttp(req, res) {
       await handleScanDocument(req, res)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Scan request failed'
+      res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders(req) })
+      res.end(JSON.stringify({ error: msg }))
+    }
+    return
+  }
+
+  if (req.method === 'POST' && url === '/api/merge-sections') {
+    try {
+      await handleMergeSections(req, res)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Merge request failed'
       res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders(req) })
       res.end(JSON.stringify({ error: msg }))
     }

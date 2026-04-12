@@ -10,6 +10,8 @@ export type JoinCollaborationGateProps = {
   connecting: boolean
   error: string | null
   onClearError: () => void
+  joinName: string
+  onJoinNameChange: (name: string) => void
 }
 
 type DocumentUploadGateProps = {
@@ -23,7 +25,6 @@ export function DocumentUploadGate({ onDocumentLoaded, joinCollaboration }: Docu
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
-  const [joinName, setJoinName] = useState('')
   const [joinCode, setJoinCode] = useState('')
 
   const processFile = useCallback(
@@ -139,8 +140,8 @@ export function DocumentUploadGate({ onDocumentLoaded, joinCollaboration }: Docu
                   Your name
                   <input
                     type="text"
-                    value={joinName}
-                    onChange={(e) => setJoinName(e.target.value)}
+                    value={joinCollaboration.joinName}
+                    onChange={(e) => joinCollaboration.onJoinNameChange(e.target.value)}
                     placeholder="e.g. Alex"
                     disabled={joinBusy}
                     className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100"
@@ -160,8 +161,8 @@ export function DocumentUploadGate({ onDocumentLoaded, joinCollaboration }: Docu
                 </label>
                 <button
                   type="button"
-                  disabled={!joinCode.trim() || !joinName.trim() || joinBusy}
-                  onClick={() => joinCollaboration.onJoinRoom(joinCode.trim(), joinName.trim())}
+                  disabled={!joinCode.trim() || !joinCollaboration.joinName.trim() || joinBusy}
+                  onClick={() => joinCollaboration.onJoinRoom(joinCode.trim(), joinCollaboration.joinName.trim())}
                   className="w-full rounded-lg bg-slate-800 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-slate-900 disabled:cursor-not-allowed disabled:bg-gray-300"
                 >
                   {joinBusy ? 'Connecting…' : 'Join room'}
