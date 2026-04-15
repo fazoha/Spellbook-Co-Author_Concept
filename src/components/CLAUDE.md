@@ -48,6 +48,11 @@ Live collaboration UI (create room / in-room view / incoming reviews).
 - Owner: shows incoming reviews from editors
 - Editor: shows "Submit working copy to owner" section
 - **Server URL input removed** — it was visible to users but they never needed to interact with it. The URL is passed in as a prop from `App.tsx` and used internally for API calls but not displayed. Also removed from `DocumentUploadGate.tsx` join form; join form subtitle cleaned of dev-jargon.
+- **CollabPanel dev jargon removed** — "npm run collab" sentence, "MVP: up to 3 people per room" prefix, and "Host syncs…" footer all removed. `officialForRoom` prop fully deleted (type, destructure, and `App.tsx` call site).
+
+## WorkflowActionPanel.tsx (additional polish)
+- **"Up to 3 files (MVP)" removed** — Open Documents description text no longer mentions file capacity or MVP status.
+- **Redundant Review Requests section removed** — The static "Review requests" block (empty-state + list) at the bottom of the panel was removed. The functional incoming reviews UI lives in `CollabPanel.tsx` and remains.
 
 ## DocumentUploadGate.tsx
 Initial screen shown before any document is loaded. Two panels: upload .docx and join a collab room.

@@ -98,6 +98,9 @@ Uses mammoth.js. Three-mode heading detection:
 
 - **Revert to original** — In `DocumentViewer.tsx`, the line diff box (shown while editing a section that differs from official) now has a two-step "Revert to original" button at the bottom. First click shows "Confirm revert?" + Cancel; second click calls `onBodyChange(id, baseSection.body)`, resetting the section to the official text and hiding the diff box.
 - **Server URL hidden** — The Server URL input was removed from both `CollabPanel.tsx` and `DocumentUploadGate.tsx`. The URL is auto-derived from `VITE_COLLAB_URL` env var in `App.tsx` and is never shown to users. The join form subtitle was also cleaned up to remove dev-jargon (`npm run collab` reference).
+- **CollabPanel dev jargon removed** — Removed "npm run collab" sentence, "MVP: up to 3 people per room" prefix, and "Host syncs…" footer from `CollabPanel.tsx`. The unused `officialForRoom` prop was fully removed from the type, destructure, and `App.tsx` call site.
+- **"Up to 3 files (MVP)" removed** — In `WorkflowActionPanel.tsx`, the Open Documents description no longer mentions file capacity or MVP status.
+- **Redundant Review Requests section removed** — The static "Review requests" block (with empty-state placeholder) in `WorkflowActionPanel.tsx` was removed. The functional incoming reviews UI in `CollabPanel.tsx` remains.
 
 ## No known remaining gaps or issues.
 

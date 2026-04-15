@@ -1,6 +1,6 @@
 import { useRef, type ReactNode } from 'react'
 
-import type { DocumentModel, ReviewRequest, SavedUpdate } from '../document'
+import type { DocumentModel, SavedUpdate } from '../document'
 
 type WorkflowActionPanelProps = {
   documents: DocumentModel[]
@@ -28,7 +28,6 @@ type WorkflowActionPanelProps = {
   onUpdateToLatest: () => void
   showUpdateToLatest: boolean
   savedUpdates: SavedUpdate[]
-  reviewRequests: ReviewRequest[]
   /** Owner is merging a collaborator’s submission (live session). */
   collabOwnerReviewActive?: boolean
   /** Optional collaboration UI block (create/join room, members, incoming reviews). */
@@ -54,35 +53,6 @@ function formatTime(iso: string): string {
   }
 }
 
-function SubmittedWorkingCopyPreview({ request }: { request: ReviewRequest }) {
-  const { sections, savedUpdates } = request.workingCopy
-  return (
-    <div className="mt-2 max-h-64 overflow-y-auto rounded-md border border-gray-100 bg-gray-50/80 p-3 text-left">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Document at submission</p>
-      <div className="mt-2 space-y-3 font-serif text-xs leading-relaxed text-gray-800">
-        {sections.map((s) => (
-          <div key={s.id}>
-            <p className="font-sans text-[11px] font-semibold text-gray-700">{s.title}</p>
-            <p className="mt-1 whitespace-pre-wrap">{s.body}</p>
-          </div>
-        ))}
-      </div>
-      {savedUpdates.length > 0 ? (
-        <div className="mt-3 border-t border-gray-200 pt-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">Saved updates at submission</p>
-          <ul className="mt-1 space-y-1">
-            {savedUpdates.map((u) => (
-              <li key={u.id} className="text-xs text-gray-600">
-                <span className="font-medium text-gray-800">{u.note}</span>
-                <span className="text-gray-400"> · {formatTime(u.timestamp)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  )
-}
 
 export function WorkflowActionPanel({
   documents,
@@ -109,7 +79,6 @@ export function WorkflowActionPanel({
   onUpdateToLatest,
   showUpdateToLatest,
   savedUpdates,
-  reviewRequests,
   collabOwnerReviewActive,
   collabSection,
   collabEditorInRoom,
@@ -150,7 +119,7 @@ export function WorkflowActionPanel({
         <div className="space-y-3 border-b border-gray-200 p-4">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Open documents</h3>
           <p className="text-xs leading-snug text-gray-500">
-            Up to {maxDocuments} files (MVP). Click a name to work on it; check the box to mark it for removal.
+            Click a name to work on it; check the box to mark it for removal.
           </p>
           <ul className="space-y-1.5" aria-label="Uploaded documents">
             {documents.map((doc) => {
@@ -338,27 +307,6 @@ export function WorkflowActionPanel({
               </ul>
             </div>
 
-            <div className="mt-8 border-t border-gray-200 pt-6">
-              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Review requests</h3>
-              {reviewRequests.length === 0 ? (
-                <p className="mt-3 rounded-lg border border-dashed border-gray-200 bg-white/80 px-3 py-4 text-center text-xs text-gray-500">
-                  None yet. Submit your working copy with Send for Review.
-                </p>
-              ) : (
-                <ul className="mt-3 space-y-4 pr-1" aria-label="Review requests">
-                  {reviewRequests
-                    .slice()
-                    .reverse()
-                    .map((req) => (
-                      <li key={req.id} className="rounded-lg border border-violet-200 bg-white p-3 shadow-sm">
-                        <p className="text-xs font-medium text-violet-900">Submitted for review</p>
-                        <p className="mt-1 text-xs text-gray-500">{formatTime(req.submittedAt)}</p>
-                        <SubmittedWorkingCopyPreview request={req} />
-                      </li>
-                    ))}
-                </ul>
-              )}
-            </div>
           </div>
         ) : null}
         </div>

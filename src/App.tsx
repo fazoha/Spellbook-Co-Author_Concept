@@ -837,7 +837,6 @@ export default function App() {
             collabSection={
               <CollabPanel
                 canCreateRoom={Boolean(officialDocument)}
-                officialForRoom={officialDocument}
                 status={collab.status}
                 error={collab.error}
                 onClearError={collab.clearError}
@@ -877,7 +876,6 @@ export default function App() {
             onUpdateToLatest={handleUpdateToLatest}
             showUpdateToLatest={Boolean(isOfficialNewerThanBranch) && !rebaseOpen}
             savedUpdates={workingDocument?.savedUpdates ?? []}
-            reviewRequests={workingDocument?.reviewRequests ?? []}
           />
         </div>
       </div>
