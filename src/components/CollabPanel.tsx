@@ -4,7 +4,6 @@ import type { CollabPendingReview } from '../realtime/useCollaboration'
 
 type CollabPanelProps = {
   canCreateRoom: boolean
-  officialForRoom: { workspaceId?: string; documentTitle?: string } | null
   status: 'idle' | 'connecting' | 'in_room'
   error: string | null
   onClearError: () => void
@@ -28,7 +27,6 @@ type CollabPanelProps = {
 
 export function CollabPanel({
   canCreateRoom,
-  officialForRoom,
   status,
   error,
   onClearError,
@@ -55,8 +53,7 @@ export function CollabPanel({
       <div>
         <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500">Live collaboration</h3>
         <p className="mt-1 text-[11px] leading-snug text-gray-500">
-          MVP: up to 3 people per room. The host owns the official document; editors can branch, then send for review.
-          Run the server with <code className="rounded bg-gray-100 px-0.5">npm run collab</code>.
+          The host owns the official document; editors can branch, then send for review.
         </p>
       </div>
 
@@ -101,11 +98,6 @@ export function CollabPanel({
               </button>
             </div>
           </div>
-          {officialForRoom ? (
-            <p className="text-[10px] text-gray-400">
-              Host syncs: {officialForRoom.documentTitle ?? 'Document'} · workspace {officialForRoom.workspaceId?.slice(0, 8)}…
-            </p>
-          ) : null}
         </>
       ) : (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 p-3 text-xs">
