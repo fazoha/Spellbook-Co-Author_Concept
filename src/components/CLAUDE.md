@@ -35,6 +35,11 @@ Renders sections as annotated textareas with AI flag overlay.
 
 **AnnotatedTextarea** — textarea + absolutely-positioned overlay div. `sharedStyle` object must stay in sync (font/padding) between textarea and overlay or text will misalign.
 
+**Line diff box** — shown below each section textarea when the working copy body differs from the official. Contains `LineDiffPanels` (compact mode) plus a two-step **Revert to original** button at the bottom:
+- First click: button label changes to "Confirm revert?" with a "Cancel" link
+- Second click: calls `onBodyChange(id, baseSection.body)`, resetting the section and hiding the diff box
+- Uses local `confirmingRevert: boolean` state inside `DocumentSection`
+
 ## CollabPanel.tsx
 Live collaboration UI (create room / in-room view / incoming reviews).
 
@@ -42,6 +47,7 @@ Live collaboration UI (create room / in-room view / incoming reviews).
 - When in room, shows members list, room code, disconnect button
 - Owner: shows incoming reviews from editors
 - Editor: shows "Submit working copy to owner" section
+- **Server URL input removed** — it was visible to users but they never needed to interact with it. The URL is passed in as a prop from `App.tsx` and used internally for API calls but not displayed. Also removed from `DocumentUploadGate.tsx` join form; join form subtitle cleaned of dev-jargon.
 
 ## DocumentUploadGate.tsx
 Initial screen shown before any document is loaded. Two panels: upload .docx and join a collab room.

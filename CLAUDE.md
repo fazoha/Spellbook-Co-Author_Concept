@@ -72,6 +72,9 @@ Plain Node.js HTTP + Socket.io, no framework. Three AI endpoints:
 
 CORS is open (`origin: true`). The `PORT` env var must be set to `3030` in Railway to match the domain target port.
 
+### Collab server URL
+`collabServerUrl` is derived once in `App.tsx` from `import.meta.env.VITE_COLLAB_URL ?? 'http://localhost:3030'` and passed as a prop through to components that need it. It is **never shown in the UI** — the Server URL input was removed from both `CollabPanel.tsx` and `DocumentUploadGate.tsx`. Set `VITE_COLLAB_URL` in Vercel's environment variables for production.
+
 ### Document import (`src/docxImport.ts`)
 Uses mammoth.js. Three-mode heading detection:
 1. **Multiple H1s** → H1 = section boundary, H2/H3 folded into body
@@ -91,7 +94,12 @@ Uses mammoth.js. Three-mode heading detection:
 - **Gap 7** — Block editors from uploading: `WorkflowActionPanel` wraps upload button in `{!collabEditorInRoom && ...}`.
 - **Gap 2** — "Combine Both (AI)" in overlap resolution: `POST /api/merge-sections` on server calls OpenAI to merge two clause versions; `applyOverlapResolutions` in `document.ts` handles `'combined'` resolution type with a `combinedTexts` map; `RebaseOverlapView.tsx` has a third violet button with loading spinner; `RebaseSessionState` carries `combinedTexts`; `App.tsx` has `handleRebaseCombinedText` handler.
 
-## All gaps complete — no known remaining gaps.
+## Post-gap polish
+
+- **Revert to original** — In `DocumentViewer.tsx`, the line diff box (shown while editing a section that differs from official) now has a two-step "Revert to original" button at the bottom. First click shows "Confirm revert?" + Cancel; second click calls `onBodyChange(id, baseSection.body)`, resetting the section to the official text and hiding the diff box.
+- **Server URL hidden** — The Server URL input was removed from both `CollabPanel.tsx` and `DocumentUploadGate.tsx`. The URL is auto-derived from `VITE_COLLAB_URL` env var in `App.tsx` and is never shown to users. The join form subtitle was also cleaned up to remove dev-jargon (`npm run collab` reference).
+
+## No known remaining gaps or issues.
 
 ## Commit convention
 

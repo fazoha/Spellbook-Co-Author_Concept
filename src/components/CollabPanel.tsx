@@ -3,8 +3,6 @@ import { useState } from 'react'
 import type { CollabPendingReview } from '../realtime/useCollaboration'
 
 type CollabPanelProps = {
-  serverUrl: string
-  onServerUrlChange: (url: string) => void
   canCreateRoom: boolean
   officialForRoom: { workspaceId?: string; documentTitle?: string } | null
   status: 'idle' | 'connecting' | 'in_room'
@@ -29,8 +27,6 @@ type CollabPanelProps = {
 }
 
 export function CollabPanel({
-  serverUrl,
-  onServerUrlChange,
   canCreateRoom,
   officialForRoom,
   status,
@@ -63,17 +59,6 @@ export function CollabPanel({
           Run the server with <code className="rounded bg-gray-100 px-0.5">npm run collab</code>.
         </p>
       </div>
-
-      <label className="block text-[11px] font-medium text-gray-600">
-        Server URL
-        <input
-          type="url"
-          value={serverUrl}
-          onChange={(e) => onServerUrlChange(e.target.value)}
-          disabled={inRoom}
-          className="mt-1 w-full rounded-md border border-gray-200 px-2 py-1.5 text-xs text-gray-900 disabled:bg-gray-100"
-        />
-      </label>
 
       {!inRoom ? (
         <>

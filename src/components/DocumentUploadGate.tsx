@@ -121,21 +121,10 @@ export function DocumentUploadGate({ onDocumentLoaded, joinCollaboration }: Docu
             <div className="rounded-2xl border border-gray-200 bg-white px-8 py-10 shadow-sm">
               <h2 className="text-center font-serif text-lg font-medium text-gray-900">Join a live session</h2>
               <p className="mt-2 text-center text-xs leading-relaxed text-gray-500">
-                Enter the room code the host shared. You will load the shared document as an editor (run{' '}
-                <code className="rounded bg-gray-100 px-0.5 text-[11px]">npm run collab</code> for the server).
+                Enter the room code the host shared. You will load the shared document as an editor.
               </p>
 
               <div className="mt-6 space-y-3">
-                <label className="block text-xs font-medium text-gray-600">
-                  Server URL
-                  <input
-                    type="url"
-                    value={joinCollaboration.serverUrl}
-                    onChange={(e) => joinCollaboration.onServerUrlChange(e.target.value)}
-                    disabled={joinBusy}
-                    className="mt-1 w-full rounded-md border border-gray-200 px-3 py-2 text-sm text-gray-900 disabled:bg-gray-100"
-                  />
-                </label>
                 <label className="block text-xs font-medium text-gray-600">
                   Your name
                   <input

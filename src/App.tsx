@@ -836,8 +836,6 @@ export default function App() {
             soloMode={soloMode}
             collabSection={
               <CollabPanel
-                serverUrl={collabServerUrl}
-                onServerUrlChange={setCollabServerUrl}
                 canCreateRoom={Boolean(officialDocument)}
                 officialForRoom={officialDocument}
                 status={collab.status}

@@ -11,3 +11,5 @@
 | Gap 6 | AI suggestion auto-creates working copy | `App.tsx` — `handleApplyAnnotation` creates working copy from official if none exists |
 | Gap 4 | Document section splitting | `src/docxImport.ts` — three-mode heading detection |
 | Gap 2 | "Combine Both (AI)" in overlap resolution | `server/index.js` (`handleMergeSections`), `src/document.ts` (`applyOverlapResolutions`), `src/components/MainDocumentArea.tsx` (`RebaseSessionState`), `src/components/RebaseOverlapView.tsx` (new button + loading state), `src/App.tsx` (`handleRebaseCombinedText`, wiring) |
+| Polish | Revert to original in line diff box | `src/components/DocumentViewer.tsx` — two-step confirm button inside the diff box, calls `onBodyChange(id, baseSection.body)` |
+| Polish | Hide server URL from UI | `src/components/CollabPanel.tsx` — removed Server URL label/input; `src/App.tsx` — removed `serverUrl`/`onServerUrlChange` props from `CollabPanel` call site; `src/components/DocumentUploadGate.tsx` — removed Server URL field from join form; cleaned up dev-jargon subtitle text |

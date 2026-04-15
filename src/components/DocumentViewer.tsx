@@ -276,6 +276,7 @@ function DocumentSection({
   const baseSection = compareOfficial?.sections.find((s) => s.id === id)
   const showLineDiff = Boolean(baseSection && baseSection.body !== body)
   const [activeAnnotation, setActiveAnnotation] = useState<Annotation | null>(null)
+  const [confirmingRevert, setConfirmingRevert] = useState(false)
 
   // If the active annotation gets dismissed externally, clear it
   useEffect(() => {
@@ -314,6 +315,37 @@ function DocumentSection({
               <p className="text-xs font-semibold uppercase tracking-wide text-amber-950">Line diff vs official</p>
               <div className="mt-3">
                 <LineDiffPanels oldText={baseSection.body} newText={body} compact />
+              </div>
+              <div className="mt-3 flex items-center gap-3 border-t border-amber-200/60 pt-3">
+                {confirmingRevert ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onBodyChange(id, baseSection.body)
+                        setConfirmingRevert(false)
+                      }}
+                      className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
+                    >
+                      Confirm revert
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingRevert(false)}
+                      className="text-xs text-gray-500 underline hover:text-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingRevert(true)}
+                    className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-sm hover:border-red-300 hover:text-red-700"
+                  >
+                    Revert to original
+                  </button>
+                )}
               </div>
             </div>
           ) : null}
