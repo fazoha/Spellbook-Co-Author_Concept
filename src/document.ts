@@ -16,6 +16,17 @@ export type SavedUpdate = {
   sectionsSnapshot: DocumentSectionData[]
 }
 
+/** Snapshot of an official version, saved each time Make Official is clicked */
+export type OfficialVersionSnapshot = {
+  id: string
+  /** ISO-8601 timestamp when this version was made official */
+  timestamp: string
+  /** The sections at the time this version was published */
+  sections: DocumentSectionData[]
+  /** Document title at the time of this version */
+  documentTitle?: string
+}
+
 /** Working-copy lifecycle (not used on official document) */
 export type WorkingDocumentStatus = 'editing' | 'in_review'
 

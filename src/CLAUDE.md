@@ -11,6 +11,8 @@ Single source of truth. Key state:
 | `annotations` | AI scan results, auto-cleared when applied/dismissed |
 | `collabDisplayName` | Current user's display name — shared between `DocumentUploadGate` (join form) and `CollabPanel` (create/join form). Shown in header when `collab.status === 'in_room'` |
 | `soloMode` | `collab.status === 'idle'` — true when not in any room |
+| `officialHistory` | `Record<string, OfficialVersionSnapshot[]>` — per-workspace list of past official versions, populated by `saveOfficialSnapshot()` on every Make Official |
+| `historyViewingVersion` | Currently selected past version snapshot, or `null` for live document. When set, main area is read-only and sidebar is disabled |
 
 ### Solo vs collab workflow
 - **Solo** (`soloMode = true`): Start Working → edit → Make Official directly. "Send for Review" hidden. `handleMakeOfficial` has a solo branch that accepts all changed sections without a review step.

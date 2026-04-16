@@ -1,4 +1,4 @@
-import type { DocumentModel, DocumentSectionData, SectionOverlap, WorkingDocumentStatus } from '../document'
+import type { DocumentModel, DocumentSectionData, OfficialVersionSnapshot, SectionOverlap, WorkingDocumentStatus } from '../document'
 import { DocumentViewer, type Annotation } from './DocumentViewer'
 import { RebaseOverlapView } from './RebaseOverlapView'
 import { ReviewCompareView } from './ReviewCompareView'
@@ -45,6 +45,12 @@ type MainDocumentAreaProps = {
   annotations: Annotation[]
   onDismissAnnotation: (sectionId: string, quote: string) => void
   onApplyAnnotation: (sectionId: string, annotation: Annotation) => void
+  /** Version history snapshots for the History dropdown. */
+  officialHistory: OfficialVersionSnapshot[]
+  /** Currently viewed past version, or null if on the live document. */
+  historyViewingVersion: OfficialVersionSnapshot | null
+  /** Select a past version to view (read-only). */
+  onSelectHistoryVersion: (version: OfficialVersionSnapshot | null) => void
 }
 
 function workspaceBadge(
@@ -85,10 +91,16 @@ export function MainDocumentArea({
   annotations,
   onDismissAnnotation,
   onApplyAnnotation,
+  officialHistory,
+  historyViewingVersion,
+  onSelectHistoryVersion,
 }: MainDocumentAreaProps) {
-  const { label, tone } = workspaceBadge(isWorkingCopy, workingStatus, collabOwnerReview)
-  const inReview = (isWorkingCopy && workingStatus === 'in_review') || Boolean(collabOwnerReview)
-  const isEditing = isWorkingCopy && workingStatus === 'editing'
+  const viewingHistory = historyViewingVersion !== null
+  const { label, tone } = viewingHistory
+    ? { label: 'Past Version', tone: 'in_review' as WorkspaceBadgeTone }
+    : workspaceBadge(isWorkingCopy, workingStatus, collabOwnerReview)
+  const inReview = !viewingHistory && ((isWorkingCopy && workingStatus === 'in_review') || Boolean(collabOwnerReview))
+  const isEditing = !viewingHistory && isWorkingCopy && workingStatus === 'editing'
   const showOutdatedBanner = isEditing && isOfficialNewerThanBranch && !rebaseSession && !collabOwnerReview
 
   const rebaseCanApply =
@@ -104,7 +116,32 @@ export function MainDocumentArea({
         badgeTone={tone}
         displayName={collabDisplayName}
         role={collabRole}
+        officialHistory={officialHistory}
+        historyViewingVersion={historyViewingVersion}
+        onSelectHistoryVersion={onSelectHistoryVersion}
       />
+      {viewingHistory ? (
+        <div
+          className="flex shrink-0 flex-wrap items-center justify-center gap-3 border-b border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950 md:justify-between md:px-6"
+          role="status"
+        >
+          <span className="font-medium">
+            You are viewing a past version from{' '}
+            {new Date(historyViewingVersion.timestamp).toLocaleDateString(undefined, {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </span>
+          <button
+            type="button"
+            onClick={() => onSelectHistoryVersion(null)}
+            className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-800"
+          >
+            Back to Current
+          </button>
+        </div>
+      ) : null}
       {showOutdatedBanner ? (
         <div
           className="flex shrink-0 flex-wrap items-center justify-center gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950 md:justify-between md:px-6"
@@ -121,7 +158,16 @@ export function MainDocumentArea({
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-8 md:px-8 md:py-10">
-        {inReview ? (
+        {viewingHistory ? (
+          <DocumentViewer
+            document={activeDocument}
+            readOnly={true}
+            onSectionBodyChange={() => {}}
+            annotations={[]}
+            onDismissAnnotation={() => {}}
+            onApplyAnnotation={() => {}}
+          />
+        ) : inReview ? (
           <ReviewCompareView
             officialDocument={officialDocument}
             submittedDocument={collabOwnerReview?.submittedDocument ?? activeDocument}

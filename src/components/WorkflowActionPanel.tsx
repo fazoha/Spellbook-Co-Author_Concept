@@ -48,6 +48,8 @@ type WorkflowActionPanelProps = {
   collabOwnerHasUnpublishedEdits?: boolean
   /** Not in any collab room — solo workflow: no Send for Review needed. */
   soloMode?: boolean
+  /** True when the user is browsing a past official version (read-only). */
+  viewingHistory?: boolean
 }
 
 function sectionsMatch(a: DocumentSectionData[], b: DocumentSectionData[]): boolean {
@@ -237,6 +239,7 @@ export function WorkflowActionPanel({
   collabOwnerInRoom = false,
   collabOwnerHasUnpublishedEdits = false,
   soloMode = false,
+  viewingHistory = false,
 }: WorkflowActionPanelProps) {
   const moreFileInputRef = useRef<HTMLInputElement>(null)
   const isEditing = workingStatus === 'editing'
@@ -254,8 +257,16 @@ export function WorkflowActionPanel({
         <p className="mt-1 text-xs text-gray-500">Move this document through your workflow.</p>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
-        <div className="space-y-0">
+      <div className="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        {viewingHistory ? (
+          <div className="absolute inset-0 z-10 flex items-start justify-center bg-gray-50/80 pt-12">
+            <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-center text-xs leading-relaxed text-blue-800">
+              You are viewing a past version.<br />
+              Actions are disabled while browsing history.
+            </p>
+          </div>
+        ) : null}
+        <div className={`space-y-0 ${viewingHistory ? 'pointer-events-none opacity-40' : ''}`}>
         {collabOwnerInRoom ? null : (
           <div className="border-b border-gray-200 p-4">
             <button

@@ -16,6 +16,7 @@ import {
   submitWorkingDocumentForReview,
   updateSectionBody,
   type DocumentModel,
+  type OfficialVersionSnapshot,
 } from './document'
 
 const MAX_DOCUMENTS = 3
@@ -62,6 +63,8 @@ export default function App() {
   const [collabRemoteRejected, setCollabRemoteRejected] = useState<string[]>([])
   const [editorSubmitToOwnerAckOpen, setEditorSubmitToOwnerAckOpen] = useState(false)
   const [collabDisplayName, setCollabDisplayName] = useState('')
+  const [officialHistory, setOfficialHistory] = useState<Record<string, OfficialVersionSnapshot[]>>({})
+  const [historyViewingVersion, setHistoryViewingVersion] = useState<OfficialVersionSnapshot | null>(null)
 
   const collabInRoomRef = useRef(false)
   const collabRoleRef = useRef<'owner' | 'editor' | null>(null)
@@ -78,6 +81,19 @@ export default function App() {
     const wid = official.workspaceId
     if (!wid || !official.versionId) return
     if (!collabInRoomRef.current) return
+
+    // Save a history snapshot for every participant (owner and editors) when official is pushed
+    setOfficialHistory((prev) => {
+      const existing = prev[wid] ?? []
+      const snapshot: OfficialVersionSnapshot = {
+        id: official.versionId!,
+        timestamp: new Date().toISOString(),
+        sections: structuredClone(official.sections),
+        documentTitle: official.documentTitle,
+      }
+      return { ...prev, [wid]: [...existing, snapshot] }
+    })
+
     // Editors choose when to rebase via "Update to latest"; host stays auto-synced.
     if (collabRoleRef.current !== 'owner') return
 
@@ -243,12 +259,19 @@ export default function App() {
   }, [officialDocuments])
 
   const isWorkingCopy = workingDocument !== null
+  const viewingHistory = historyViewingVersion !== null
 
   const activeDocument: DocumentModel | null =
-    officialDocument === null ? null : isWorkingCopy ? workingDocument! : officialDocument
+    viewingHistory
+      ? {
+          sections: historyViewingVersion.sections,
+          documentTitle: historyViewingVersion.documentTitle,
+          workspaceId: activeWorkspaceId ?? undefined,
+        }
+      : officialDocument === null ? null : isWorkingCopy ? workingDocument! : officialDocument
 
   const rebaseOpen = rebaseSession !== null
-  const documentReadOnly = !isWorkingCopy || workingStatus === 'in_review' || rebaseOpen
+  const documentReadOnly = viewingHistory || !isWorkingCopy || workingStatus === 'in_review' || rebaseOpen
 
   const isOfficialNewerThanBranch =
     officialDocument !== null &&
@@ -556,6 +579,19 @@ export default function App() {
     })
   }
 
+  function saveOfficialSnapshot(workspaceId: string, merged: DocumentModel) {
+    setOfficialHistory((prev) => {
+      const existing = prev[workspaceId] ?? []
+      const snapshot: OfficialVersionSnapshot = {
+        id: merged.versionId ?? crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        sections: structuredClone(merged.sections),
+        documentTitle: merged.documentTitle,
+      }
+      return { ...prev, [workspaceId]: [...existing, snapshot] }
+    })
+  }
+
   function handleMakeOfficial() {
     if (!activeWorkspaceId || !officialDocument) return
     if (collab.role === 'editor' && collab.status === 'in_room') return
@@ -571,6 +607,7 @@ export default function App() {
       setOfficialDocuments((prev) =>
         prev.map((o) => (o.workspaceId === activeWorkspaceId ? merged : o)),
       )
+      saveOfficialSnapshot(activeWorkspaceId, merged)
       collab.resolveReview(collabOwnerReview.reviewId, merged)
       setCollabOwnerReview(null)
       setCollabRemoteAccepted([])
@@ -594,6 +631,7 @@ export default function App() {
       setOfficialDocuments((prev) =>
         prev.map((o) => (o.workspaceId === activeWorkspaceId ? merged : o)),
       )
+      saveOfficialSnapshot(activeWorkspaceId, merged)
       patchSession(activeWorkspaceId, {
         workingDocument: null,
         saveUpdateNote: '',
@@ -612,6 +650,7 @@ export default function App() {
       setOfficialDocuments((prev) =>
         prev.map((o) => (o.workspaceId === activeWorkspaceId ? merged : o)),
       )
+      saveOfficialSnapshot(activeWorkspaceId, merged)
       patchSession(activeWorkspaceId, {
         workingDocument: null,
         saveUpdateNote: '',
@@ -629,6 +668,7 @@ export default function App() {
     setOfficialDocuments((prev) =>
       prev.map((o) => (o.workspaceId === activeWorkspaceId ? merged : o)),
     )
+    saveOfficialSnapshot(activeWorkspaceId, merged)
     patchSession(activeWorkspaceId, {
       workingDocument: null,
       saveUpdateNote: '',
@@ -845,6 +885,9 @@ export default function App() {
             annotations={annotations}
             onDismissAnnotation={handleDismissAnnotation}
             onApplyAnnotation={handleApplyAnnotation}
+            officialHistory={activeWorkspaceId ? (officialHistory[activeWorkspaceId] ?? []) : []}
+            historyViewingVersion={historyViewingVersion}
+            onSelectHistoryVersion={setHistoryViewingVersion}
           />
           <WorkflowActionPanel
             documents={officialDocuments}
@@ -852,7 +895,7 @@ export default function App() {
             maxDocuments={MAX_DOCUMENTS}
             selectedRemovalIds={selectedRemovalIds}
             onToggleRemoval={handleToggleRemoval}
-            onSelectWorkspace={setActiveWorkspaceId}
+            onSelectWorkspace={(id) => { setHistoryViewingVersion(null); setActiveWorkspaceId(id) }}
             onAddDocumentFile={handleAddDocumentFile}
             addMoreBusy={addMoreBusy}
             addMoreError={addMoreError}
@@ -928,6 +971,7 @@ export default function App() {
             onRestoreSavedUpdate={handleRestoreSavedUpdate}
             onDeleteSavedUpdate={handleDeleteSavedUpdate}
             onDiscardWorkingCopy={handleDiscardWorkingCopy}
+            viewingHistory={viewingHistory}
           />
         </div>
       </div>

@@ -1,14 +1,17 @@
 # src/components — Component Reference
 
 ## WorkspaceHeader.tsx
-Top bar showing document title, version badge, and (when in a collab room) the current user's name + role badge.
+Top bar showing document title, version badge, history button, and (when in a collab room) the current user's name + role badge.
 
 Props:
 - `documentTitle`, `versionLabel`, `badgeTone` — always required
 - `displayName?: string` — user's display name (only shown when in a collab room)
 - `role?: 'owner' | 'editor' | null` — renders "Official Owner" or "Collaborator" badge
+- `officialHistory?: OfficialVersionSnapshot[]` — past official versions for the History dropdown
+- `historyViewingVersion?: OfficialVersionSnapshot | null` — currently viewed past version
+- `onSelectHistoryVersion?: (version | null) => void` — select a past version (or `null` to return to current)
 
-The name + role section only renders when both `displayName` and `role` are non-null/non-empty.
+**History button** — appears when `officialHistory` has entries. Opens a dropdown with "Current Version" at top, then all past versions (most recent first) with timestamps. Each entry shows "Viewing" badge when active. Click-outside closes the dropdown. Button is highlighted blue when viewing a past version.
 
 ## WorkflowActionPanel.tsx
 Right sidebar. Key props that control visibility of action buttons:
@@ -19,6 +22,7 @@ Right sidebar. Key props that control visibility of action buttons:
 | `collabEditorInRoom` | Hides "Send for Review", "Make Official", and "Upload another .docx" |
 | `collabOwnerInRoom` | Hides "Start Working" and "Send for Review"; Make Official publishes to room |
 | `hideMakeOfficial` | Explicitly hides Make Official (used for editors) |
+| `viewingHistory` | Disables entire sidebar content (overlay + pointer-events-none + opacity) while browsing a past official version |
 
 `mergeReviewOpen` (internal) gates the Make Official button enabled state. It is true when:
 - `inReview` (working copy is `in_review`)
