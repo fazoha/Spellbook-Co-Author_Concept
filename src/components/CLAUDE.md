@@ -53,6 +53,7 @@ Live collaboration UI (create room / in-room view / incoming reviews).
 ## WorkflowActionPanel.tsx (additional polish)
 - **"Up to 3 files (MVP)" removed** — Open Documents description text no longer mentions file capacity or MVP status.
 - **Redundant Review Requests section removed** — The static "Review requests" block (empty-state + list) at the bottom of the panel was removed. The functional incoming reviews UI lives in `CollabPanel.tsx` and remains.
+- **Functional version history** — Saved Updates list uses `SavedUpdateCard` component. Features: "Current" badge when live sections match a snapshot (`sectionsMatch()`), click-to-expand restore with "Restore to this version" / "Cancel", per-card delete icon with inline confirm. Deleting the current card shows a stronger warning and calls `onDiscardWorkingCopy`. All interactive controls disabled when `in_review`. New props: `currentSections`, `onRestoreSavedUpdate`, `onDeleteSavedUpdate`, `onDiscardWorkingCopy`.
 
 ## DocumentUploadGate.tsx
 Initial screen shown before any document is loaded. Two panels: upload .docx and join a collab room.

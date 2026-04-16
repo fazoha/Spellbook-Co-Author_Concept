@@ -429,6 +429,54 @@ export default function App() {
     })
   }
 
+  function handleRestoreSavedUpdate(updateId: string) {
+    if (!activeWorkspaceId) return
+    setSessions((prev) => {
+      const s = prev[activeWorkspaceId] ?? emptySession()
+      if (!s.workingDocument || s.workingDocument.status !== 'editing') return prev
+      const update = s.workingDocument.savedUpdates?.find((u) => u.id === updateId)
+      if (!update) return prev
+      return {
+        ...prev,
+        [activeWorkspaceId]: {
+          ...s,
+          workingDocument: {
+            ...s.workingDocument,
+            sections: structuredClone(update.sectionsSnapshot),
+          },
+        },
+      }
+    })
+  }
+
+  function handleDeleteSavedUpdate(updateId: string) {
+    if (!activeWorkspaceId) return
+    setSessions((prev) => {
+      const s = prev[activeWorkspaceId] ?? emptySession()
+      if (!s.workingDocument || s.workingDocument.status !== 'editing') return prev
+      return {
+        ...prev,
+        [activeWorkspaceId]: {
+          ...s,
+          workingDocument: {
+            ...s.workingDocument,
+            savedUpdates: (s.workingDocument.savedUpdates ?? []).filter((u) => u.id !== updateId),
+          },
+        },
+      }
+    })
+  }
+
+  function handleDiscardWorkingCopy() {
+    if (!activeWorkspaceId) return
+    patchSession(activeWorkspaceId, {
+      workingDocument: null,
+      acceptedSectionIds: [],
+      rejectedSectionIds: [],
+      rebaseSession: null,
+    })
+  }
+
   function handleSendForReview() {
     if (!activeWorkspaceId) return
     const isCollabEditor = collab.role === 'editor' && collab.status === 'in_room'
@@ -876,6 +924,10 @@ export default function App() {
             onUpdateToLatest={handleUpdateToLatest}
             showUpdateToLatest={Boolean(isOfficialNewerThanBranch) && !rebaseOpen}
             savedUpdates={workingDocument?.savedUpdates ?? []}
+            currentSections={workingDocument?.sections}
+            onRestoreSavedUpdate={handleRestoreSavedUpdate}
+            onDeleteSavedUpdate={handleDeleteSavedUpdate}
+            onDiscardWorkingCopy={handleDiscardWorkingCopy}
           />
         </div>
       </div>

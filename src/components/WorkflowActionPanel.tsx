@@ -1,6 +1,6 @@
-import { useRef, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 
-import type { DocumentModel, SavedUpdate } from '../document'
+import type { DocumentModel, DocumentSectionData, SavedUpdate } from '../document'
 
 type WorkflowActionPanelProps = {
   documents: DocumentModel[]
@@ -28,6 +28,14 @@ type WorkflowActionPanelProps = {
   onUpdateToLatest: () => void
   showUpdateToLatest: boolean
   savedUpdates: SavedUpdate[]
+  /** Live sections of the working document — used to detect which saved update is "current". */
+  currentSections?: DocumentSectionData[]
+  /** Restore the working document to the snapshot of a saved update. */
+  onRestoreSavedUpdate?: (updateId: string) => void
+  /** Delete a saved update from the list. */
+  onDeleteSavedUpdate?: (updateId: string) => void
+  /** Discard the entire working copy and return to the official document. */
+  onDiscardWorkingCopy?: () => void
   /** Owner is merging a collaborator’s submission (live session). */
   collabOwnerReviewActive?: boolean
   /** Optional collaboration UI block (create/join room, members, incoming reviews). */
@@ -40,6 +48,146 @@ type WorkflowActionPanelProps = {
   collabOwnerHasUnpublishedEdits?: boolean
   /** Not in any collab room — solo workflow: no Send for Review needed. */
   soloMode?: boolean
+}
+
+function sectionsMatch(a: DocumentSectionData[], b: DocumentSectionData[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((s, i) => s.id === b[i].id && s.title === b[i].title && s.body === b[i].body)
+}
+
+function SavedUpdateCard({
+  update,
+  isCurrent,
+  isEditing,
+  isOnlySavedUpdate,
+  onRestore,
+  onDelete,
+  onDiscardWorkingCopy,
+}: {
+  update: SavedUpdate
+  isCurrent: boolean
+  isEditing: boolean
+  isOnlySavedUpdate: boolean
+  onRestore?: (id: string) => void
+  onDelete?: (id: string) => void
+  onDiscardWorkingCopy?: () => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  return (
+    <li className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <button
+          type="button"
+          disabled={!isEditing || isCurrent}
+          onClick={() => { if (!isCurrent) setExpanded((p) => !p) }}
+          className={`flex-1 text-left ${isEditing && !isCurrent ? 'cursor-pointer hover:opacity-80' : ''}`}
+        >
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-gray-900">{update.note}</p>
+            {isCurrent && (
+              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800">
+                Current
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-gray-500">{formatTime(update.timestamp)}</p>
+        </button>
+        {isEditing && !confirmDelete && (
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            className="mt-0.5 shrink-0 rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+            title="Delete this version"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5">
+              <path fillRule="evenodd" d="M5 3.25V4H2.75a.75.75 0 0 0 0 1.5h.3l.815 8.15A1.5 1.5 0 0 0 5.357 15h5.285a1.5 1.5 0 0 0 1.493-1.35l.815-8.15h.3a.75.75 0 0 0 0-1.5H11v-.75A1.75 1.75 0 0 0 9.25 1.5h-2.5A1.75 1.75 0 0 0 5 3.25Zm2.25-.75a.25.25 0 0 0-.25.25V4h2v-.75a.25.25 0 0 0-.25-.25h-2.5ZM6.05 6a.75.75 0 0 1 .787.713l.275 5.5a.75.75 0 0 1-1.498.075l-.275-5.5A.75.75 0 0 1 6.05 6Zm3.9 0a.75.75 0 0 1 .712.787l-.275 5.5a.75.75 0 0 1-1.498-.075l.275-5.5A.75.75 0 0 1 9.95 6Z" clipRule="evenodd" />
+            </svg>
+          </button>
+        )}
+      </div>
+
+      {/* Restore expand */}
+      {expanded && isEditing && !isCurrent && (
+        <div className="mt-2 flex items-center gap-2 border-t border-gray-100 pt-2">
+          <button
+            type="button"
+            onClick={() => { onRestore?.(update.id); setExpanded(false) }}
+            className="rounded-md bg-indigo-600 px-3 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-indigo-700"
+          >
+            Restore to this version
+          </button>
+          <button
+            type="button"
+            onClick={() => setExpanded(false)}
+            className="text-[11px] text-gray-500 underline hover:text-gray-700"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {confirmDelete && (
+        <div className="mt-2 border-t border-red-100 pt-2">
+          {isCurrent && isOnlySavedUpdate ? (
+            <>
+              <p className="text-[11px] leading-snug text-red-800">
+                This will discard your current working copy and return you to the official version. This cannot be undone.
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { onDiscardWorkingCopy?.(); setConfirmDelete(false) }}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-800 shadow-sm hover:bg-red-50"
+                >
+                  Discard working copy
+                </button>
+                <button type="button" onClick={() => setConfirmDelete(false)} className="text-[11px] text-gray-500 underline hover:text-gray-700">
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : isCurrent ? (
+            <>
+              <p className="text-[11px] leading-snug text-red-800">
+                This will discard your current working copy and return you to the official version. This cannot be undone.
+              </p>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { onDiscardWorkingCopy?.(); setConfirmDelete(false) }}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-800 shadow-sm hover:bg-red-50"
+                >
+                  Discard working copy
+                </button>
+                <button type="button" onClick={() => setConfirmDelete(false)} className="text-[11px] text-gray-500 underline hover:text-gray-700">
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-[11px] leading-snug text-amber-800">Remove this saved version?</p>
+              <div className="mt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { onDelete?.(update.id); setConfirmDelete(false) }}
+                  className="rounded-md border border-red-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-red-800 shadow-sm hover:bg-red-50"
+                >
+                  Delete
+                </button>
+                <button type="button" onClick={() => setConfirmDelete(false)} className="text-[11px] text-gray-500 underline hover:text-gray-700">
+                  Cancel
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </li>
+  )
 }
 
 function formatTime(iso: string): string {
@@ -79,6 +227,10 @@ export function WorkflowActionPanel({
   onUpdateToLatest,
   showUpdateToLatest,
   savedUpdates,
+  currentSections,
+  onRestoreSavedUpdate,
+  onDeleteSavedUpdate,
+  onDiscardWorkingCopy,
   collabOwnerReviewActive,
   collabSection,
   collabEditorInRoom,
@@ -298,10 +450,16 @@ export function WorkflowActionPanel({
                     .slice()
                     .reverse()
                     .map((u) => (
-                      <li key={u.id} className="rounded-lg border border-gray-200 bg-white px-3 py-2.5 shadow-sm">
-                        <p className="text-sm font-medium text-gray-900">{u.note}</p>
-                        <p className="mt-1 text-xs text-gray-500">{formatTime(u.timestamp)}</p>
-                      </li>
+                      <SavedUpdateCard
+                        key={u.id}
+                        update={u}
+                        isCurrent={currentSections ? sectionsMatch(currentSections, u.sectionsSnapshot) : false}
+                        isEditing={isEditing}
+                        isOnlySavedUpdate={savedUpdates.length === 1}
+                        onRestore={onRestoreSavedUpdate}
+                        onDelete={onDeleteSavedUpdate}
+                        onDiscardWorkingCopy={onDiscardWorkingCopy}
+                      />
                     ))
                 )}
               </ul>

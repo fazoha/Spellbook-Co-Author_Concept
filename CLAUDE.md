@@ -101,6 +101,7 @@ Uses mammoth.js. Three-mode heading detection:
 - **CollabPanel dev jargon removed** — Removed "npm run collab" sentence, "MVP: up to 3 people per room" prefix, and "Host syncs…" footer from `CollabPanel.tsx`. The unused `officialForRoom` prop was fully removed from the type, destructure, and `App.tsx` call site.
 - **"Up to 3 files (MVP)" removed** — In `WorkflowActionPanel.tsx`, the Open Documents description no longer mentions file capacity or MVP status.
 - **Redundant Review Requests section removed** — The static "Review requests" block (with empty-state placeholder) in `WorkflowActionPanel.tsx` was removed. The functional incoming reviews UI in `CollabPanel.tsx` remains.
+- **Functional version history** — Saved Updates cards in `WorkflowActionPanel.tsx` are now interactive. A `SavedUpdateCard` component handles: "Current" badge (sections compared via `sectionsMatch()`), click-to-expand restore flow ("Restore to this version" / "Cancel"), and per-card delete with inline confirm. Deleting the current card shows a stronger warning and calls `onDiscardWorkingCopy` which clears the entire working copy. All interactions are disabled when `in_review`. New handlers in `App.tsx`: `handleRestoreSavedUpdate`, `handleDeleteSavedUpdate`, `handleDiscardWorkingCopy`.
 
 ## No known remaining gaps or issues.
 

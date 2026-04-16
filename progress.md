@@ -16,3 +16,4 @@
 | Polish | Clean up CollabPanel dev jargon | `src/components/CollabPanel.tsx` — removed "npm run collab" text, removed "MVP: up to 3 people per room" text, removed "Host syncs…" footer; removed unused `officialForRoom` prop from type + call site in `App.tsx` |
 | Polish | Remove "Up to 3 files (MVP)" from Open Documents | `src/components/WorkflowActionPanel.tsx` — removed capacity/MVP prefix from description text |
 | Polish | Remove redundant Review Requests section | `src/components/WorkflowActionPanel.tsx` — removed static "Review requests" block (empty state + list); the dynamic one in CollabPanel remains |
+| Feature | Functional version history in Saved Updates | `src/components/WorkflowActionPanel.tsx` — `SavedUpdateCard` with Current badge, restore expand, delete confirm; `src/App.tsx` — `handleRestoreSavedUpdate`, `handleDeleteSavedUpdate`, `handleDiscardWorkingCopy` |
