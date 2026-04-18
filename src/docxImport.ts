@@ -143,8 +143,7 @@ export async function documentModelFromDocx(arrayBuffer: ArrayBuffer, fileName: 
     { styleMap: STYLE_MAP }
   )
 
-  console.log("HTML OUTPUT:\n", html)
-  console.log("MESSAGES:\n", messages)
+  
 
   let pairs = htmlToSections(html)
 
