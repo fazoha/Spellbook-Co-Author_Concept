@@ -346,13 +346,33 @@ export default function App() {
     })
   }, [collabOwnerInRoom, collabOwnerReview, activeWorkspaceId, officialDocument])
 
-  function handleFirstDocumentLoaded(doc: DocumentModel) {
+  async function uploadDocToS3(file: File, workspaceId: string) {
+    try {
+      const buffer = await file.arrayBuffer()
+      const res = await fetch(`${collabServerUrl}/api/upload-document`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+        body: buffer,
+      })
+      const data = await res.json().catch(() => ({})) as { key?: string }
+      if (res.ok && data.key) {
+        setOfficialDocuments((prev) =>
+          prev.map((o) => (o.workspaceId === workspaceId ? { ...o, s3Key: data.key } : o)),
+        )
+      }
+    } catch {
+      // S3 upload is best-effort — don't interrupt the user if it fails
+    }
+  }
+
+  function handleFirstDocumentLoaded(doc: DocumentModel, file: File) {
     const wid = doc.workspaceId
     if (!wid) return
     setOfficialDocuments([doc])
     setSessions({ [wid]: emptySession() })
     setActiveWorkspaceId(wid)
     setSelectedRemovalIds([])
+    void uploadDocToS3(file, wid)
   }
 
   async function handleAddDocumentFile(file: File) {
@@ -368,10 +388,31 @@ export default function App() {
       setSessions((prev) => ({ ...prev, [wid]: emptySession() }))
       setActiveWorkspaceId(wid)
       setSelectedRemovalIds([])
+      void uploadDocToS3(file, wid)
     } catch (e) {
       setAddMoreError(e instanceof Error ? e.message : 'Could not read this file.')
     } finally {
       setAddMoreBusy(false)
+    }
+  }
+
+  async function handleExportDocument() {
+    if (!activeDocument) return
+    try {
+      const res = await fetch(`${collabServerUrl}/api/export-document`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sections: activeDocument.sections,
+          documentTitle: activeDocument.documentTitle,
+        }),
+      })
+      const data = await res.json().catch(() => ({})) as { url?: string }
+      if (res.ok && data.url) {
+        window.open(data.url, '_blank')
+      }
+    } catch {
+      // Export failures are silent
     }
   }
 
@@ -972,6 +1013,7 @@ export default function App() {
             onDeleteSavedUpdate={handleDeleteSavedUpdate}
             onDiscardWorkingCopy={handleDiscardWorkingCopy}
             viewingHistory={viewingHistory}
+            onExportDocument={handleExportDocument}
           />
         </div>
       </div>

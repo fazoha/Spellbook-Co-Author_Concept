@@ -50,6 +50,8 @@ type WorkflowActionPanelProps = {
   soloMode?: boolean
   /** True when the user is browsing a past official version (read-only). */
   viewingHistory?: boolean
+  /** Export the current document to S3 and trigger a download. */
+  onExportDocument?: () => void
 }
 
 function sectionsMatch(a: DocumentSectionData[], b: DocumentSectionData[]): boolean {
@@ -240,6 +242,7 @@ export function WorkflowActionPanel({
   collabOwnerHasUnpublishedEdits = false,
   soloMode = false,
   viewingHistory = false,
+  onExportDocument,
 }: WorkflowActionPanelProps) {
   const moreFileInputRef = useRef<HTMLInputElement>(null)
   const isEditing = workingStatus === 'editing'
@@ -443,6 +446,16 @@ export function WorkflowActionPanel({
               {collabOwnerReviewActive ? 'Merge into official (notify room)' : 'Make Official'}
             </button>
           )}
+
+          {onExportDocument ? (
+            <button
+              type="button"
+              onClick={onExportDocument}
+              className="w-full rounded-lg border border-gray-200 bg-white px-4 py-3 text-left text-sm font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50"
+            >
+              Export document
+            </button>
+          ) : null}
         </nav>
 
         {isWorkingCopy ? (

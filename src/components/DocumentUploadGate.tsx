@@ -15,7 +15,7 @@ export type JoinCollaborationGateProps = {
 }
 
 type DocumentUploadGateProps = {
-  onDocumentLoaded: (document: DocumentModel) => void
+  onDocumentLoaded: (document: DocumentModel, file: File) => void
   /** Lets collaborators join a room before uploading their own file. */
   joinCollaboration?: JoinCollaborationGateProps
 }
@@ -38,7 +38,7 @@ export function DocumentUploadGate({ onDocumentLoaded, joinCollaboration }: Docu
       try {
         const { importDocxFromFile } = await import('../docxImport')
         const doc = await importDocxFromFile(file)
-        onDocumentLoaded(doc)
+        onDocumentLoaded(doc, file)
       } catch (e) {
         const message = e instanceof Error ? e.message : 'Could not read this file.'
         setError(message)

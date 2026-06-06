@@ -59,6 +59,8 @@ export type DocumentModel = {
   status?: WorkingDocumentStatus
   /** Working copy only: submissions sent for review */
   reviewRequests?: ReviewRequest[]
+  /** S3 key for the original uploaded .docx file, set after upload to /api/upload-document */
+  s3Key?: string
 }
 
 export function createInitialOfficialDocument(): DocumentModel {

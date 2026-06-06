@@ -16,6 +16,14 @@ dist-ssr
 # Test documents (local only)
 *.docx
 
+# Terraform — never commit state or credentials
+infrastructure/.terraform/
+infrastructure/terraform.tfstate
+infrastructure/terraform.tfstate.backup
+infrastructure/.terraform.lock.hcl
+infrastructure/scan_document.zip
+infrastructure/terraform.tfvars
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

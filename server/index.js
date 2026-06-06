@@ -4,6 +4,11 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 import { config } from 'dotenv'
 import { Server } from 'socket.io'
+import { LambdaClient, InvokeCommand } from '@aws-sdk/client-lambda'
+import { uploadToS3, getSignedDownloadUrl } from './s3.js'
+
+const lambdaClient = new LambdaClient({ region: 'us-east-1' })
+const LAMBDA_FUNCTION_NAME = 'coauthor-scan-document'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 config({ path: path.resolve(__dirname, '..', '.env') })
@@ -158,12 +163,6 @@ The user highlighted ONLY this excerpt. Analyze **only** this passage — do not
 async function handleScanDocument(req, res) {
   const headers = { 'Content-Type': 'application/json', ...corsHeaders(req) }
 
-  if (!OPENAI_KEY?.trim()) {
-    res.writeHead(503, headers)
-    res.end(JSON.stringify({ error: 'Server missing OPENAI_API_KEY.' }))
-    return
-  }
-
   let body
   try {
     const raw = await readBody(req)
@@ -181,57 +180,30 @@ async function handleScanDocument(req, res) {
     return
   }
 
-  const sectionList = sections
-    .map((s, i) => {
-      const text = typeof s.body === 'string' ? s.body.slice(0, 4000) : ''
-      return `Section ${i + 1} [id:${s.id}] "${s.title || 'Untitled'}":\n${text}`
-    })
-    .join('\n\n---\n\n')
-
-  const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${OPENAI_KEY.trim()}`,
-    },
-    body: JSON.stringify({
-      model: OPENAI_MODEL,
-      temperature: 0.2,
-      max_tokens: 2000,
-      messages: [
-        {
-          role: 'system',
-          content:
-            'You are Co-Author, a contract review assistant. Analyze the contract sections provided and return a JSON array of annotations. Each annotation must be an object with exactly these fields:\n- "sectionId": the id from the section header (e.g. "abc123")\n- "quote": the EXACT verbatim phrase from the text that is problematic (5-15 words, must exist verbatim in the section text)\n- "issue": one sentence describing the problem\n- "suggestion": the exact replacement text for the quoted phrase only\n\nReturn ONLY a valid JSON array, no markdown, no explanation. If a section has no issues, omit it. Maximum 2 annotations per section.',
-        },
-        {
-          role: 'user',
-          content: `Analyze these contract sections and return a JSON array of annotations:\n\n${sectionList}`,
-        },
-      ],
+  const lambdaRes = await lambdaClient.send(
+    new InvokeCommand({
+      FunctionName: LAMBDA_FUNCTION_NAME,
+      Payload: JSON.stringify({ sections }),
     }),
-  })
+  )
 
-  const data = await openaiRes.json().catch(() => ({}))
-  if (!openaiRes.ok) {
-    const msg = data?.error?.message || 'OpenAI request failed'
+  if (lambdaRes.FunctionError) {
     res.writeHead(502, headers)
-    res.end(JSON.stringify({ error: msg }))
+    res.end(JSON.stringify({ error: 'Lambda invocation error', annotations: [] }))
     return
   }
 
-  const reply = data?.choices?.[0]?.message?.content?.trim() ?? '[]'
-  let annotations = []
-  try {
-    const cleaned = reply.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim()
-    annotations = JSON.parse(cleaned)
-    if (!Array.isArray(annotations)) annotations = []
-  } catch {
-    annotations = []
+  const result = JSON.parse(Buffer.from(lambdaRes.Payload).toString())
+
+  if (result.statusCode && result.statusCode !== 200) {
+    const errBody = typeof result.body === 'string' ? JSON.parse(result.body) : (result.body ?? {})
+    res.writeHead(result.statusCode, headers)
+    res.end(JSON.stringify(errBody))
+    return
   }
 
   res.writeHead(200, headers)
-  res.end(JSON.stringify({ annotations }))
+  res.end(JSON.stringify({ annotations: result.annotations ?? [] }))
 }
 
 async function handleMergeSections(req, res) {
@@ -303,10 +275,55 @@ async function handleMergeSections(req, res) {
   res.end(JSON.stringify({ merged }))
 }
 
+function readBodyBuffer(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = []
+    req.on('data', (c) => chunks.push(c))
+    req.on('end', () => resolve(Buffer.concat(chunks)))
+    req.on('error', reject)
+  })
+}
+
+async function handleUploadDocument(req, res) {
+  const headers = { 'Content-Type': 'application/json', ...corsHeaders(req) }
+  try {
+    const buffer = await readBodyBuffer(req)
+    const key = `documents/${randomUUID()}.docx`
+    await uploadToS3(key, buffer, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    res.writeHead(200, headers)
+    res.end(JSON.stringify({ key, message: 'Document uploaded successfully' }))
+  } catch (e) {
+    res.writeHead(500, headers)
+    res.end(JSON.stringify({ error: 'Upload failed' }))
+  }
+}
+
+async function handleExportDocument(req, res) {
+  const headers = { 'Content-Type': 'application/json', ...corsHeaders(req) }
+  try {
+    const raw = await readBody(req)
+    const { sections, documentTitle } = JSON.parse(raw || '{}')
+    if (!sections || !Array.isArray(sections)) {
+      res.writeHead(400, headers)
+      res.end(JSON.stringify({ error: 'No sections provided' }))
+      return
+    }
+    const content = sections.map((s) => `${s.title}\n\n${s.body}`).join('\n\n---\n\n')
+    const key = `exports/${randomUUID()}-${documentTitle || 'document'}.txt`
+    await uploadToS3(key, Buffer.from(content, 'utf8'), 'text/plain')
+    const url = await getSignedDownloadUrl(key)
+    res.writeHead(200, headers)
+    res.end(JSON.stringify({ url, key }))
+  } catch (e) {
+    res.writeHead(500, headers)
+    res.end(JSON.stringify({ error: 'Export failed' }))
+  }
+}
+
 async function handleHttp(req, res) {
   const url = req.url?.split('?')[0] || ''
 
-  if (req.method === 'OPTIONS' && (url === '/api/coauthor' || url === '/api/scan-document' || url === '/api/merge-sections')) {
+  if (req.method === 'OPTIONS' && (url === '/api/coauthor' || url === '/api/scan-document' || url === '/api/merge-sections' || url === '/api/upload-document' || url === '/api/export-document')) {
     res.writeHead(204, corsHeaders(req))
     res.end()
     return
@@ -339,6 +356,28 @@ async function handleHttp(req, res) {
       await handleMergeSections(req, res)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Merge request failed'
+      res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders(req) })
+      res.end(JSON.stringify({ error: msg }))
+    }
+    return
+  }
+
+  if (req.method === 'POST' && url === '/api/upload-document') {
+    try {
+      await handleUploadDocument(req, res)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Upload failed'
+      res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders(req) })
+      res.end(JSON.stringify({ error: msg }))
+    }
+    return
+  }
+
+  if (req.method === 'POST' && url === '/api/export-document') {
+    try {
+      await handleExportDocument(req, res)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Export failed'
       res.writeHead(500, { 'Content-Type': 'application/json', ...corsHeaders(req) })
       res.end(JSON.stringify({ error: msg }))
     }
