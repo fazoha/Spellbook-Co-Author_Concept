@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react' // v2
 
 import { CollabPanel } from './components/CollabPanel'
 import type { Annotation } from './components/DocumentViewer'
