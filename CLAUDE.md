@@ -50,7 +50,8 @@ GitHub push to main
     └── Docker build → ECR push → ECS update         (backend)
 
 Browser → CloudFront (HTTPS) → S3 (static assets)
-Browser → ALB (HTTP + WebSocket upgrade) → ECS Fargate task (port 3030)
+Browser → CloudFront (HTTPS) /api/* → ALB (HTTP) → ECS Fargate task (port 3030)
+Browser → CloudFront (HTTPS) /socket.io/* → ALB (HTTP) → ECS Fargate task (WebSocket)
 ECS task → OpenAI API (merge-sections, coauthor)
 ECS task → Lambda coauthor-scan-document → OpenAI API (scan)
 ECS task → S3 coauthor-documents-farhan (upload / export)
@@ -108,7 +109,7 @@ The GitHub Actions workflow handles this automatically via `docker buildx create
 |--------|-------|
 | `AWS_ACCESS_KEY_ID` | IAM user `coauthor-dev-2` access key |
 | `AWS_SECRET_ACCESS_KEY` | IAM user `coauthor-dev-2` secret key |
-| `VITE_COLLAB_URL` | `http://coauthor-alb-862972696.us-east-1.elb.amazonaws.com` |
+| `VITE_COLLAB_URL` | `https://d3kpeh8q49zq3j.cloudfront.net` |
 | `FRONTEND_BUCKET` | `coauthor-frontend-farhan` |
 | `CLOUDFRONT_DISTRIBUTION_ID` | `E3K3YT9OV06KJO` |
 
@@ -127,7 +128,7 @@ AWS account: `448047749558`, IAM user: `coauthor-dev-2`, region: `us-east-1`.
 |----------|------|---------|
 | S3 bucket | `coauthor-documents-farhan` | Document uploads + exports (versioning, AES-256) |
 | S3 bucket | `coauthor-frontend-farhan` | Static site hosting for React build |
-| CloudFront distribution | `E3K3YT9OV06KJO` | HTTPS CDN for frontend; SPA fallback (403/404 → index.html) |
+| CloudFront distribution | `E3K3YT9OV06KJO` | HTTPS CDN for frontend + API proxy; `/api/*` and `/socket.io/*` route to ALB; SPA fallback (403/404 → index.html) |
 | Lambda | `coauthor-scan-document` | Node.js 20.x, 30s timeout; invoked by ECS task via SDK |
 | VPC | `10.0.0.0/16` | Networking for ECS + ALB |
 | Subnets | `public_a` (us-east-1a), `public_b` (us-east-1b) | Two AZs required by ALB |
@@ -193,8 +194,10 @@ Key decisions:
 - ECS desired_count=1 (in-memory Socket.io rooms cannot be load-balanced without Redis)
 - Docker images must be built for `linux/amd64` (Mac M-series default is ARM64 which ECS rejects)
 - ALB natively handles WebSocket upgrades — no special Socket.io config needed
+- CloudFront proxies `/api/*` and `/socket.io/*` to the ALB — this is required because the frontend is served over HTTPS but the ALB is HTTP-only; browsers block mixed content (HTTPS page → HTTP API)
 - CloudFront custom error responses map 403/404 → 200 + index.html for React Router SPA routing
 - OpenAI API key stored as plaintext env var in ECS task definition (acceptable for dev/MVP)
+- `lightningcss-linux-x64-gnu` and `@tailwindcss/oxide-linux-x64-gnu` are listed in `optionalDependencies` in `package.json` so `npm ci` on Linux CI installs the correct native binaries (Mac-generated lockfiles omit these entries)
 
 ## No known remaining gaps or issues.
 
