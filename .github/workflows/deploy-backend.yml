@@ -30,8 +30,10 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: coauthor-backend
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest ./server
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+          docker buildx create --use
+          docker buildx build --platform linux/amd64 \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:latest \
+            --push ./server
 
       - name: Force ECS redeployment
         run: |
